@@ -91,7 +91,7 @@ export const Incidents = () => {
     downloadCSV(exportData, "Incidents_Export");
   };
 
-  const canEdit =  user?.role === Role.ADMIN || user?.role === Role.EPAYMENT_OFFICER;
+  const canEdit =  user?.role === Role.SUPER_ADMIN || user?.role === Role.ADMIN || user?.role === Role.EPAYMENT_OFFICER;
 
   return (
     <div className="space-y-6">

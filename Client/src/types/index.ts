@@ -1,4 +1,5 @@
 export const Role = {
+  SUPER_ADMIN: "SUPER_ADMIN",
   ADMIN: "ADMIN",
   PMS_OFFICER: "PMS_OFFICER",
   EPAYMENT_OFFICER: "EPAYMENT_OFFICER",
@@ -28,6 +29,7 @@ export interface User {
   lastName: string;
   email: string;
   phone: string; // Added phone number
+  password?: string; // Added password for mock authentication
   role: Role;
 }
 
