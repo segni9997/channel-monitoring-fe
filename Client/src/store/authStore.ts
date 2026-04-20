@@ -6,7 +6,7 @@ import type { User, Role } from "../types";
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string) => boolean;
+  login: (email: string, password: string) => boolean;
   logout: () => void;
   hasRole: (roles: Role[]) => boolean;
 }
@@ -16,8 +16,8 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
-      login: (email: string) => {
-        const found = MOCK_USERS.find((u) => u.email === email);
+      login: (email: string, password: string) => {
+        const found = MOCK_USERS.find((u) => u.email === email && u.password === password);
         if (found) {
           set({ user: found, isAuthenticated: true });
           return true;

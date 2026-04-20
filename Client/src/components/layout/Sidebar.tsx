@@ -15,10 +15,10 @@ export const Sidebar = () => {
   const location = useLocation();
 
   const links = [
-    { name: "Dashboard", path: "/", icon: LayoutDashboard, roles: [Role.ADMIN, Role.PMS_OFFICER, Role.EPAYMENT_OFFICER] },
-    { name: "Incidents", path: "/incidents", icon: AlertCircle, roles: [Role.ADMIN, Role.PMS_OFFICER, Role.EPAYMENT_OFFICER] },
-    { name: "Users", path: "/users", icon: Users, roles: [Role.ADMIN] },
-    { name: "Reasons", path: "/reasons", icon: List, roles: [Role.ADMIN] },
+    { name: "Dashboard", path: "/", icon: LayoutDashboard, roles: [Role.SUPER_ADMIN, Role.ADMIN, Role.PMS_OFFICER, Role.EPAYMENT_OFFICER] },
+    { name: "Incidents", path: "/incidents", icon: AlertCircle, roles: [Role.SUPER_ADMIN, Role.ADMIN, Role.PMS_OFFICER, Role.EPAYMENT_OFFICER] },
+    { name: "Users", path: "/users", icon: Users, roles: [Role.SUPER_ADMIN, Role.ADMIN] },
+    { name: "Reasons", path: "/reasons", icon: List, roles: [Role.SUPER_ADMIN, Role.ADMIN] },
   ];
 
   const allowedLinks = links.filter((l) => user && l.roles.includes(user.role));

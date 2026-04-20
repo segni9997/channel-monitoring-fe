@@ -3,27 +3,39 @@ import { subDays, subHours, addHours } from "date-fns";
 
 export const MOCK_USERS: User[] = [
   {
+    id: "usr_sa",
+    firstName: "System",
+    lastName: "Owner",
+    email: "sa@berhan.dev",
+    phone: "+251900000000",
+    password: "sa123",
+    role: Role.SUPER_ADMIN,
+  },
+  {
     id: "usr_1",
     firstName: "Segni",
     lastName: "Asrat",
-    email: "segni.asrat@berhanbank.com",
+    email: "segni.asrat@berhanbanksc.com",
     phone: "+251911000001",
+    password: "password123",
     role: Role.ADMIN,
   },
   {
     id: "usr_2",
     firstName: "PMS",
     lastName: "Analyst",
-    email: "pms.analyst@berhanbank.com",
+    email: "pms.analyst@berhanbanksc.com",
     phone: "+251911000002",
+    password: "password123",
     role: Role.PMS_OFFICER,
   },
   {
     id: "usr_3",
     firstName: "Epayment",
     lastName: "Specialist",
-    email: "epayment.specialist@berhanbank.com",
+    email: "epayment.specialist@berhanbanksc.com",
     phone: "+251911000003",
+    password: "password123",
     role: Role.EPAYMENT_OFFICER,
   },
 ];

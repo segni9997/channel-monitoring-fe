@@ -53,9 +53,11 @@ export const AdminUserMgmt = () => {
   const handleSave = () => {
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.role) return;
 
-    // Email domain restriction
-    const emailDomain = "@berhanbank.com";
-    if (!formData.email.toLowerCase().endsWith(emailDomain)) {
+    // Email domain restriction - Bypassed for SUPER_ADMIN
+    const emailDomain = "@berhanbanksc.com";
+    const isSuperAdmin = currentUser?.role === Role.SUPER_ADMIN;
+    
+    if (!isSuperAdmin && !formData.email?.toLowerCase().endsWith(emailDomain)) {
       alert(`Invalid email domain. Only ${emailDomain} is permitted.`);
       return;
     }
@@ -75,7 +77,7 @@ export const AdminUserMgmt = () => {
     // Auto-generate email only when both names are present and if the user hasn't manually edited the email significantly
     // or specifically when adding a new user.
     if (isAdding && nextData.firstName && nextData.lastName) {
-      nextData.email = `${nextData.firstName.toLowerCase()}.${nextData.lastName.toLowerCase()}@berhanbank.com`;
+      nextData.email = `${nextData.firstName.toLowerCase()}.${nextData.lastName.toLowerCase()}@berhanbanksc.com`;
     }
     
     setFormData(nextData);
@@ -130,7 +132,7 @@ export const AdminUserMgmt = () => {
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
                       options={[
-                        { value: Role.ADMIN, label: "Admin" },
+                        ...(currentUser?.role === Role.SUPER_ADMIN ? [{ value: Role.ADMIN, label: "Admin" }] : []),
                         { value: Role.PMS_OFFICER, label: "PMS Officer" },
                         { value: Role.EPAYMENT_OFFICER, label: "E-Payment Officer" }
                       ]}
@@ -164,7 +166,7 @@ export const AdminUserMgmt = () => {
                           value={formData.role}
                           onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
                           options={[
-                            { value: Role.ADMIN, label: "Admin" },
+                            ...(currentUser?.role === Role.SUPER_ADMIN ? [{ value: Role.ADMIN, label: "Admin" }] : []),
                             { value: Role.PMS_OFFICER, label: "PMS Officer" },
                             { value: Role.EPAYMENT_OFFICER, label: "E-Payment Officer" }
                           ]}
@@ -183,8 +185,34 @@ export const AdminUserMgmt = () => {
                         </>
                       ) : (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => startEdit(u)} disabled={!!editingId || isAdding || u.id === currentUser?.id} className="text-muted-foreground hover:text-primary"><Edit2 className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => deleteUser(u.id)} disabled={!!editingId || isAdding || u.id === currentUser?.id} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => startEdit(u)} 
+                            disabled={
+                              !!editingId || 
+                              isAdding || 
+                              u.id === currentUser?.id || 
+                              (currentUser?.role === Role.ADMIN && (u.role === Role.ADMIN || u.role === Role.SUPER_ADMIN))
+                            } 
+                            className="text-muted-foreground hover:text-primary"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => deleteUser(u.id)} 
+                            disabled={
+                              !!editingId || 
+                              isAdding || 
+                              u.id === currentUser?.id ||
+                              (currentUser?.role === Role.ADMIN && (u.role === Role.ADMIN || u.role === Role.SUPER_ADMIN))
+                            } 
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </>
                       )}
                     </TableCell>
