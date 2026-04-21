@@ -1,35 +1,49 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { MOCK_USERS } from "@/data/mock";
+import { useAdminloginMutation } from "@/api/authApi";
 
-export const Login = () => {
+export const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const login = useAuthStore((state) => state.login);
+  const setUser = useAuthStore((state) => state.setUser);
   const navigate = useNavigate();
-  
+ const [adminLogin ,{isLoading}] = useAdminloginMutation()
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     if (val.endsWith("@")) {
-      setEmail(val + "berhanbanksc.com");
+      // setEmail(val + "berhanbanksc.com");
     } else {
       setEmail(val);
     }
   };
 
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e:React.FormEvent) => {
     e.preventDefault();
-    if (login(email, password)) {
-      navigate("/");
-    } else {
-      setError("Invalid email or password.");
+    console.log(email, password);
+     try {
+ const res = await adminLogin({ email, password }).unwrap();
+
+    console.log("API RESPONSE:", res);
+
+    // ✅ Save to Zustand
+    setUser(res.user);
+
+    // ✅ Optional: store token if exists
+    if (res.token) {
+      localStorage.setItem("token", res.token);
     }
+
+    navigate("/");
+     } catch (err){
+        console.error(err);
+    setError("Invalid email or password");
+     }
   };
 
   return (
@@ -39,7 +53,7 @@ export const Login = () => {
       </div>
       <Card className="w-full max-w-md shadow-lg bg-background/50 backdrop-blur-sm">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-3xl font-bold tracking-tight">Sign in</CardTitle>
+          <CardTitle className="text-3xl font-bold tracking-tight">Sign in | Admin</CardTitle>
           <CardDescription>
             Access the incident monitoring dashboard
           </CardDescription>
@@ -59,7 +73,7 @@ export const Login = () => {
                 onChange={handleEmailChange}
                 required
               />
-              <p className="text-[10px] text-muted-foreground italic">Tip: Type '@' to autofill domain</p>
+              {/* <p className="text-[10px] text-muted-foreground italic">Tip: Type '@' to autofill domain</p> */}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -78,16 +92,16 @@ export const Login = () => {
             
             <div className="mt-4 rounded-md bg-muted/50 p-3 text-[10px] text-muted-foreground border">
               <p className="font-semibold mb-1">Mock Accounts (Default Pass: password123):</p>
-              <ul className="list-disc pl-4 space-y-1">
+              {/* <ul className="list-disc pl-4 space-y-1">
                 {MOCK_USERS.map(u => (
                   <li key={u.id}>{u.firstName} {u.lastName} - {u.email} ({u.role})</li>
                 ))}
-              </ul>
+              </ul> */}
             </div>
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full">
-              Sign in
+            {isLoading  ? "signing in" : "  Sign in"}
             </Button>
           </CardFooter>
         </form>

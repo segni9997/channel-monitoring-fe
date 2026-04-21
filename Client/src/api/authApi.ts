@@ -1,5 +1,27 @@
-import { baseApi } from "./baseapi";
+import type { Role } from "@/types";
+import { baseApi } from "./baseApi";
 
+interface LoginRequest {
+email:string;
+password:string;
+
+}
+
+interface LoginResponse {
+  message: string;
+  token:string;
+
+  user: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+    email: string;
+    role: Role;
+    created_at: string;
+    updated_at: string;
+  }
+} 
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     // 🟢 SIGNUP
@@ -12,9 +34,16 @@ export const authApi = baseApi.injectEndpoints({
     }),
 
     // 🟢 LOGIN
-    login: builder.mutation({
+    adminlogin: builder.mutation<LoginResponse, LoginRequest>({
       query: (credentials) => ({
-        url: "/auth/login",
+        url: "/login/admin",
+        method: "POST",
+        body: credentials,
+      }),
+    }),
+      userlogin: builder.mutation<LoginResponse, LoginRequest>({
+      query: (credentials) => ({
+        url: "/login/users",
         method: "POST",
         body: credentials,
       }),
@@ -24,5 +53,6 @@ export const authApi = baseApi.injectEndpoints({
 
 export const {
   useSignupMutation,
-  useLoginMutation,
+  useAdminloginMutation,
+  useUserloginMutation,
 } = authApi;

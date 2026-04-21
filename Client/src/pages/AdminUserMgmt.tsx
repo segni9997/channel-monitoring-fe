@@ -33,7 +33,7 @@ export const AdminUserMgmt = () => {
   }, [users, page, pageSize]);
 
   const startEdit = (user: User) => {
-    setEditingId(user.id);
+    setEditingId(user.id.toString());
     setFormData(user);
     setIsAdding(false);
   };
@@ -41,7 +41,7 @@ export const AdminUserMgmt = () => {
   const startAdd = () => {
     setIsAdding(true);
     setEditingId(null);
-    setFormData({ role: Role.PMS_OFFICER, firstName: "", lastName: "", email: "", phone: "" });
+    setFormData({ role: Role.pms_offcier, firstName: "", lastName: "", email: "", phoneNumber: "" });
   };
 
   const cancelEdit = () => {
@@ -53,9 +53,9 @@ export const AdminUserMgmt = () => {
   const handleSave = () => {
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.role) return;
 
-    // Email domain restriction - Bypassed for SUPER_ADMIN
+    // Email domain restriction - Bypassed for super_admin
     const emailDomain = "@berhanbanksc.com";
-    const isSuperAdmin = currentUser?.role === Role.SUPER_ADMIN;
+    const isSuperAdmin = currentUser?.role === Role.super_admin;
     
     if (!isSuperAdmin && !formData.email?.toLowerCase().endsWith(emailDomain)) {
       alert(`Invalid email domain. Only ${emailDomain} is permitted.`);
@@ -125,16 +125,16 @@ export const AdminUserMgmt = () => {
                     <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="Email" />
                   </TableCell>
                   <TableCell>
-                    <Input value={formData.phone || ""} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="Phone" />
+                    <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} placeholder="Phone" />
                   </TableCell>
                   <TableCell>
                     <Select
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
                       options={[
-                        ...(currentUser?.role === Role.SUPER_ADMIN ? [{ value: Role.ADMIN, label: "Admin" }] : []),
-                        { value: Role.PMS_OFFICER, label: "PMS Officer" },
-                        { value: Role.EPAYMENT_OFFICER, label: "E-Payment Officer" }
+                        ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
+                        { value: Role.pms_offcier, label: "PMS Officer" },
+                        { value: Role.epayment_officer, label: "E-Payment Officer" }
                       ]}
                     />
                   </TableCell>
@@ -145,7 +145,7 @@ export const AdminUserMgmt = () => {
                 </TableRow>
               )}
               {pagedUsers.map((u) => {
-                const isEditing = editingId === u.id;
+                const isEditing = editingId === u.id.toString();
                 return (
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">
@@ -158,7 +158,7 @@ export const AdminUserMgmt = () => {
                       {isEditing ? <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /> : u.email}
                     </TableCell>
                     <TableCell>
-                      {isEditing ? <Input value={formData.phone || ""} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /> : u.phone}
+                      {isEditing ? <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} /> : u.phoneNumber}
                     </TableCell>
                     <TableCell>
                       {isEditing ? (
@@ -166,13 +166,13 @@ export const AdminUserMgmt = () => {
                           value={formData.role}
                           onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
                           options={[
-                            ...(currentUser?.role === Role.SUPER_ADMIN ? [{ value: Role.ADMIN, label: "Admin" }] : []),
-                            { value: Role.PMS_OFFICER, label: "PMS Officer" },
-                            { value: Role.EPAYMENT_OFFICER, label: "E-Payment Officer" }
+                            ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
+                            { value: Role.pms_offcier, label: "PMS Officer" },
+                            { value: Role.epayment_officer, label: "E-Payment Officer" }
                           ]}
                         />
                       ) : (
-                        <Badge variant={u.role === Role.ADMIN ? "default" : "secondary"}>
+                        <Badge variant={u.role === Role.admin ? "default" : "secondary"}>
                           {u.role.replace("_", " ")}
                         </Badge>
                       )}
@@ -193,7 +193,7 @@ export const AdminUserMgmt = () => {
                               !!editingId || 
                               isAdding || 
                               u.id === currentUser?.id || 
-                              (currentUser?.role === Role.ADMIN && (u.role === Role.ADMIN || u.role === Role.SUPER_ADMIN))
+                              (currentUser?.role === Role.admin && (u.role === Role.admin || u.role === Role.super_admin))
                             } 
                             className="text-muted-foreground hover:text-primary"
                           >
@@ -202,12 +202,12 @@ export const AdminUserMgmt = () => {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => deleteUser(u.id)} 
+                            onClick={() => deleteUser(u.id.toString())} 
                             disabled={
                               !!editingId || 
                               isAdding || 
                               u.id === currentUser?.id ||
-                              (currentUser?.role === Role.ADMIN && (u.role === Role.ADMIN || u.role === Role.SUPER_ADMIN))
+                              (currentUser?.role === Role.admin && (u.role === Role.admin || u.role === Role.super_admin))
                             } 
                             className="text-muted-foreground hover:text-destructive"
                           >
