@@ -1,7 +1,7 @@
-import {  useMemo } from "react";
+// import {  useMemo } from "react";
 import { useIncidentStore } from "@/store/incidentStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Status } from "@/types";
+// import { Status } from "@/types";
 import {
   BarChart,
   Bar,
@@ -12,7 +12,10 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  Legend
+  Legend,
+  PieChart,
+  Pie,
+  Cell
 } from "recharts";
 import { AlertCircle, Clock, CheckCircle } from "lucide-react";
 import { Select } from "@/components/ui/select";
@@ -20,53 +23,42 @@ import { subDays, subMonths, subYears, isAfter } from "date-fns";
 import { getBusinessDate } from "@/utils/date";
 
 import { useDashboardStore } from "@/store/dashboardStore";
+import { useDashboardQuery } from "@/api/dashbaordApi";
 
 export const Dashboard = () => {
   const { incidents } = useIncidentStore();
   const { timeRange, setTimeRange } = useDashboardStore();
+ const mapFilter = (range: string) => {
+    switch (range) {
+      case "daily":
+        return "24hrs";
+      case "weekly":
+        return "week";
+      case "monthly":
+        return "month";
+      case "yearly":
+        return "year";
+      default:
+        return "day";
+    }
+  };
 
+  const { data,} = useDashboardQuery({
+    filter: mapFilter(timeRange),
+  });
+
+  console.log("dashboard data", data)
+ 
+
+   const totalIncidents = data?.total_incidents ?? 0;
+  const pendingIncidents = data?.pending_incidents ?? 0;
+  const completedIncidents = data?.completed_incidents ?? 0;
+  const totalDowntime = data?.total_down_time ?? 0;
   // Filter based on time range
-  const filteredIncidents = useMemo(() => {
-    const now = new Date();
-    let cutoffDate = subDays(now, 1);
 
-    if (timeRange === "weekly") cutoffDate = subDays(now, 7);
-    if (timeRange === "monthly") cutoffDate = subMonths(now, 1);
-    if (timeRange === "yearly") cutoffDate = subYears(now, 1);
 
-    if (timeRange === "all") return incidents;
 
-    return incidents.filter(inc => isAfter(new Date(inc.downtimeStart), cutoffDate));
-  }, [incidents, timeRange]);
 
-  // Summary Metrics
-  const totalIncidents = filteredIncidents.length;
-  const totalDowntime = filteredIncidents.reduce((acc, curr) => acc + (curr.duration || 0), 0);
-  const pendingIncidents = filteredIncidents.filter((i) => i.status === Status.PENDING).length;
-  const completedIncidents = totalIncidents - pendingIncidents;
-
-  // Bar Chart Data: Downtime per channel
-  const downtimeByChannel = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredIncidents.forEach((inc) => {
-      const current = map.get(inc.channel) || 0;
-      map.set(inc.channel, current + (inc.duration || 0));
-    });
-    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [filteredIncidents]);
-
-  // Line Chart Data: Incident trend by Business Date
-  const incidentsByDate = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredIncidents.forEach((inc) => {
-      const bDate = getBusinessDate(inc.downtimeStart);
-      const current = map.get(bDate) || 0;
-      map.set(bDate, current + 1);
-    });
-    return Array.from(map.entries())
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => a.date.localeCompare(b.date)); // Sort chronologically
-  }, [filteredIncidents]);
 
   return (
     <div className="space-y-6 ">
@@ -78,10 +70,10 @@ export const Dashboard = () => {
         <div className="w-48">
           <Select
             options={[
-              { value: "daily", label: "Last 24 Hours" },
-              { value: "weekly", label: "Last 7 Days" },
-              { value: "monthly", label: "Last 30 Days" },
-              { value: "yearly", label: "Last Year" },
+              { value: "24hrs", label: "Last 24 Hours" },
+              { value: "week", label: "Last 7 Days" },
+              { value: "month", label: "Last 30 Days" },
+              { value: "year", label: "Last Year" },
               { value: "all", label: "All Time" }
             ]}
             value={timeRange}
@@ -139,18 +131,33 @@ export const Dashboard = () => {
             <CardDescription>Aggregate duration metric.</CardDescription>
           </CardHeader>
           <CardContent className="h-80">
-            {downtimeByChannel.length === 0 ? (
+            {data?.total_down_time.length === 0 ? (
               <div className="h-full flex items-center justify-center text-muted-foreground">No data available</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={downtimeByChannel} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                  <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px' }} />
-                  <Bar dataKey="value" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
+  <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+    
+    <RechartsTooltip
+      contentStyle={{ borderRadius: "8px" }}
+    />
+
+    <Pie
+      data={data}
+      dataKey="value"
+      nameKey="name"
+      cx="50%"
+      cy="50%"
+      outerRadius={80}
+      fill="hsl(var(--accent))"
+      label
+    >
+      {data.map((entry, index) => (
+        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+      ))}
+    </Pie>
+
+  </PieChart>
+</ResponsiveContainer>
             )}
           </CardContent>
         </Card>
@@ -160,7 +167,7 @@ export const Dashboard = () => {
             <CardTitle>Incident Trends</CardTitle>
             <CardDescription>Grouped by 7 AM rollover business date.</CardDescription>
           </CardHeader>
-          <CardContent className="h-80">
+          {/* <CardContent className="h-80">
             {incidentsByDate.length === 0 ? (
               <div className="h-full flex items-center justify-center text-muted-foreground">No data available</div>
             ) : (
@@ -175,7 +182,7 @@ export const Dashboard = () => {
                 </LineChart>
               </ResponsiveContainer>
             )}
-          </CardContent>
+          </CardContent> */}
         </Card>
       </div>
     </div>
