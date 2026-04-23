@@ -10,7 +10,11 @@ export const usersApi = baseApi.injectEndpoints({
         url: "/admin/users",
         method: "GET",
       }),
-    //   providesTags: ["Users"],
+      transformResponse: (response: any) => {
+        console.log("response", response)
+        return response
+      }
+    
     }),
 
     // 🟢 CREATE USER

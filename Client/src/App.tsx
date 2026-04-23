@@ -3,12 +3,14 @@ import { RootLayout } from "./components/layout/RootLayout";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 import { Login } from "./pages/Login";
 import { SuperLogin } from "./pages/SuperLogin";
-import { Dashboard } from "./pages/Dashboard";
+// import { Dashboard } from "./pages/Dashboard";
 import { Incidents } from "./pages/Incidents";
 import { AdminUserMgmt } from "./pages/AdminUserMgmt";
 import { AdminReasonMgmt } from "./pages/AdminReasonMgmt";
 import { Role } from "./types";
 import { AdminLogin } from "./pages/AdminLogin";
+import { Loader } from "./components/shared/Loader";
+import ErrorPage from "./components/shared/ErrorPages";
 
 const router = createBrowserRouter([
   {
@@ -27,14 +29,14 @@ const router = createBrowserRouter([
     path: "/",
     element: <RootLayout />,
     children: [
-      {
-        index: true,
-        element: (
-          <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer]}>
-            <Dashboard />
-          </ProtectedRoute>
-        ),
-      },
+      // {
+      //   index: true,
+      //   element: (
+      //     <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer]}>
+      //       <Dashboard />
+      //     </ProtectedRoute>
+      //   ),
+      // },
       {
         path: "incidents",
         element: (
@@ -50,6 +52,7 @@ const router = createBrowserRouter([
             <AdminUserMgmt />
           </ProtectedRoute>
         ),
+        errorElement:<Loader/>,
       },
       {
         path: "reasons",
@@ -58,6 +61,10 @@ const router = createBrowserRouter([
             <AdminReasonMgmt />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "*",
+        element: <ErrorPage code={404} title="Page Not Found" message="The page you are looking for does not exist." />,
       },
     ],
   },

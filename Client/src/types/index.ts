@@ -1,8 +1,8 @@
 export const Role = {
-  super_admin: "super_admin",
+  super_admin: "superAdmin",
   admin: "admin",
-  pms_offcier: "pms_offcier",
-  epayment_officer: "epayment_officer",
+  pms_offcier: "offcier",
+  epayment_officer: "pms",
 } as const;
 
 export type Role = (typeof Role)[keyof typeof Role];
@@ -25,7 +25,7 @@ export type Status = (typeof Status)[keyof typeof Status];
 
 export interface User {
 
-  password?: string; // Added password for mock authentication
+  password: string; // Added password for mock authentication
  id: number;
     firstName: string;
     lastName: string;

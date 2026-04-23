@@ -1,7 +1,7 @@
-import {  useMemo } from "react";
+// import {  useMemo } from "react";
 import { useIncidentStore } from "@/store/incidentStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Status } from "@/types";
+// import { Status } from "@/types";
 import {
   BarChart,
   Bar,
@@ -12,7 +12,10 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  Legend
+  Legend,
+  PieChart,
+  Pie,
+  Cell
 } from "recharts";
 import { AlertCircle, Clock, CheckCircle } from "lucide-react";
 import { Select } from "@/components/ui/select";
@@ -39,34 +42,12 @@ export const Dashboard = () => {
         return "day";
     }
   };
-const mapDateFilter = (range: string) => {
-  const today = new Date();
-  const format = (d: Date) => d.toISOString().split("T")[0];
 
-  switch (range) {
-    case "daily":
-      return {
-        from_date: format(new Date(today.setDate(today.getDate() - 1))),
-      };
-    case "weekly":
-      return {
-        from_date: format(new Date(today.setDate(today.getDate() - 7))),
-      };
-    case "monthly":
-      return {
-        from_date: format(new Date(today.setMonth(today.getMonth() - 1))),
-      };
-    case "yearly":
-      return {
-        from_date: format(new Date(today.setFullYear(today.getFullYear() - 1))),
-      };
-    default:
-      return {};
-  }
-};
   const { data,} = useDashboardQuery({
     filter: mapFilter(timeRange),
   });
+
+  console.log("dashboard data", data)
  
 
    const totalIncidents = data?.total_incidents ?? 0;
@@ -153,15 +134,30 @@ const mapDateFilter = (range: string) => {
             {data?.total_down_time.length === 0 ? (
               <div className="h-full flex items-center justify-center text-muted-foreground">No data available</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={downtimeByChannel} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                  <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px' }} />
-                  <Bar dataKey="value" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
+  <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+    
+    <RechartsTooltip
+      contentStyle={{ borderRadius: "8px" }}
+    />
+
+    <Pie
+      data={data}
+      dataKey="value"
+      nameKey="name"
+      cx="50%"
+      cy="50%"
+      outerRadius={80}
+      fill="hsl(var(--accent))"
+      label
+    >
+      {data.map((entry, index) => (
+        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+      ))}
+    </Pie>
+
+  </PieChart>
+</ResponsiveContainer>
             )}
           </CardContent>
         </Card>
@@ -171,7 +167,7 @@ const mapDateFilter = (range: string) => {
             <CardTitle>Incident Trends</CardTitle>
             <CardDescription>Grouped by 7 AM rollover business date.</CardDescription>
           </CardHeader>
-          <CardContent className="h-80">
+          {/* <CardContent className="h-80">
             {incidentsByDate.length === 0 ? (
               <div className="h-full flex items-center justify-center text-muted-foreground">No data available</div>
             ) : (
@@ -186,7 +182,7 @@ const mapDateFilter = (range: string) => {
                 </LineChart>
               </ResponsiveContainer>
             )}
-          </CardContent>
+          </CardContent> */}
         </Card>
       </div>
     </div>

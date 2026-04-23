@@ -17,20 +17,28 @@ import { Plus, Edit2, Trash2, X, Check } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Pagination } from "@/components/ui/pagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCreateUserMutation, useGetUsersQuery, useUpdateUserMutation } from "@/api/userApi";
+import { Loader } from "@/components/shared/Loader";
 
 export const AdminUserMgmt = () => {
-  const { users, page, pageSize, setPage, setPageSize, addUser, updateUser, deleteUser } = useUserStore();
+  const {  page, pageSize, setPage, setPageSize } = useUserStore();
   const { user: currentUser } = useAuthStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-
+  const {data:users,isLoading,isError,refetch}= useGetUsersQuery()
+  const [addUser, { isLoading: isAddingUser }] = useCreateUserMutation();
+  const [updateUser, { isLoading: isUpdatingUser }] = useUpdateUserMutation();
+  // const [deleteUser, { isLoading: isDeletingUser }] = useDeleteUserMutuation();
+  console.log("users", users)
   // Form states
   const [formData, setFormData] = useState<Partial<User>>({});
-
   const pagedUsers = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return users.slice(start, start + pageSize);
+    return users?.slice(start, start + pageSize) || [];
   }, [users, page, pageSize]);
+
+  if (isLoading) return <div className="flex justify-center items-center h-screen"><Loader/></div>;
+  if (isError) return <div className="flex justify-center items-center h-screen">error</div>;
 
   const startEdit = (user: User) => {
     setEditingId(user.id.toString());
@@ -41,7 +49,7 @@ export const AdminUserMgmt = () => {
   const startAdd = () => {
     setIsAdding(true);
     setEditingId(null);
-    setFormData({ role: Role.pms_offcier, firstName: "", lastName: "", email: "", phoneNumber: "" });
+    setFormData({ role: Role.pms_offcier, firstName: "", lastName: "", email: "", phoneNumber: "", password: "" });
   };
 
   const cancelEdit = () => {
@@ -51,7 +59,7 @@ export const AdminUserMgmt = () => {
   };
 
   const handleSave = () => {
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.role) return;
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.role || (isAdding && !formData.password)) return;
 
     // Email domain restriction - Bypassed for super_admin
     const emailDomain = "@berhanbanksc.com";
@@ -63,9 +71,11 @@ export const AdminUserMgmt = () => {
     }
 
     if (isAdding) {
-      addUser(formData as Omit<User, "id">);
+      addUser(formData as Omit<User, "id"| "created_at"| "updated_at">);
+      refetch();
     } else if (editingId) {
-      updateUser(editingId, formData);
+      updateUser({id:Number(editingId),data:formData as Omit<User, "password" > });
+      refetch();
     }
     cancelEdit();
   };
@@ -109,6 +119,7 @@ export const AdminUserMgmt = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Password</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -137,10 +148,20 @@ export const AdminUserMgmt = () => {
                         { value: Role.epayment_officer, label: "E-Payment Officer" }
                       ]}
                     />
+
+                    
+                  </TableCell>
+                  <TableCell>
+                    <Input 
+                      type="password" 
+                      value={formData.password || ""} 
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                      placeholder="Password" 
+                    />
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button>
+                      {isAddingUser  ? <Loader/> : <>   <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button></>}
                   </TableCell>
                 </TableRow>
               )}
@@ -177,6 +198,18 @@ export const AdminUserMgmt = () => {
                         </Badge>
                       )}
                     </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input 
+                          type="password" 
+                          value={formData.password || ""} 
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                          placeholder="New password" 
+                        />
+                      ) : (
+                        <span className="text-muted-foreground italic text-xs">********</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right space-x-2">
                       {isEditing ? (
                         <>
@@ -202,7 +235,7 @@ export const AdminUserMgmt = () => {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => deleteUser(u.id.toString())} 
+                            // onClick={() => deleteUser(u.id.toString())} 
                             disabled={
                               !!editingId || 
                               isAdding || 
@@ -223,7 +256,7 @@ export const AdminUserMgmt = () => {
           </Table>
           <Pagination
             currentPage={page}
-            totalCount={users.length}
+            totalCount={users?.length || 0}
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
