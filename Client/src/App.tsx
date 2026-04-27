@@ -7,6 +7,7 @@ import { SuperLogin } from "./pages/SuperLogin";
 import { Incidents } from "./pages/Incidents";
 import { AdminUserMgmt } from "./pages/AdminUserMgmt";
 import { AdminReasonMgmt } from "./pages/AdminReasonMgmt";
+import { AdminBranchMgmt } from "./pages/AdminBranchMgmt";
 import { Role } from "./types";
 import { AdminLogin } from "./pages/AdminLogin";
 import { Loader } from "./components/shared/Loader";
@@ -59,6 +60,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin]}>
             <AdminReasonMgmt />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "network",
+        element: (
+          <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin]}>
+            <AdminBranchMgmt />
           </ProtectedRoute>
         ),
       },

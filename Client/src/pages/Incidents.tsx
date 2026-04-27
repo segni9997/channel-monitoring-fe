@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { useIncidentStore } from "@/store/incidentStore";
 import { useReasonStore } from "@/store/reasonStore";
+import { useBranchStore } from "@/store/branchStore";
+import { useATMStore } from "@/store/atmStore";
+import { useDepartmentStore } from "@/store/departmentStore";
 import { useAuthStore } from "@/store/authStore";
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -27,6 +30,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export const Incidents = () => {
   const { incidents, page, pageSize, setPage, setPageSize } = useIncidentStore();
   const { reasons } = useReasonStore();
+  const { branches } = useBranchStore();
+  const { atms } = useATMStore();
+  const { departments } = useDepartmentStore();
   const { user } = useAuthStore();
   
   // Date filtering states (defaulting to today's date)
@@ -44,8 +50,26 @@ export const Incidents = () => {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const getReasonLabel = (reasonId: string) => {
-    return reasons.find(r => r.id === reasonId)?.description || reasonId;
+    return reasons.find(r => r.id === reasonId)?.name || reasonId;
   };
+
+  const getBranchLabel = (branchId?: string) => {
+    if (!branchId) return "--";
+    return branches.find(b => b.id === branchId)?.name || branchId;
+  };
+
+  const getAtmLabels = (atmIds?: string[]) => {
+    if (!atmIds || atmIds.length === 0) return "--";
+    return atmIds.map(id => atms.find(a => a.id === id)?.name || id).join(", ");
+  };
+
+  const getDepartmentLabel = (reasonId: string) => {
+    const reason = reasons.find(r => r.id === reasonId);
+    if (!reason) return "--";
+    return departments.find(d => d.id === reason.departmentId)?.name || "--";
+  };
+
+  const isPrivileged = user?.role === Role.super_admin || user?.role === Role.admin || user?.role === Role.pms_offcier;
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter((inc) => {
@@ -77,17 +101,27 @@ export const Incidents = () => {
   }, [filteredIncidents, page, pageSize]);
 
   const handleExport = () => {
-    const exportData = filteredIncidents.map((inc) => ({
-      ID: inc.id,
-      "Business Date": getBusinessDate(inc.downtimeStart),
-      "Start Time": format(new Date(inc.downtimeStart), "yyyy-MM-dd HH:mm"),
-      "End Time": inc.downtimeEnd ? format(new Date(inc.downtimeEnd), "yyyy-MM-dd HH:mm") : "PENDING",
-      Duration: inc.duration ?? "N/A",
-      Channel: inc.channel,
-      Status: inc.status,
-      Reason: getReasonLabel(inc.reasonId),
-      Remark: inc.remark,
-    }));
+    const exportData = filteredIncidents.map((inc) => {
+      const data: any = {
+        ID: inc.id,
+        "Business Date": getBusinessDate(inc.downtimeStart),
+        "Start Time": format(new Date(inc.downtimeStart), "yyyy-MM-dd HH:mm"),
+        "End Time": inc.downtimeEnd ? format(new Date(inc.downtimeEnd), "yyyy-MM-dd HH:mm") : "PENDING",
+        Duration: inc.duration ?? "N/A",
+        Channel: inc.channel,
+        Status: inc.status,
+        Branch: getBranchLabel(inc.branchId),
+        ATMs: getAtmLabels(inc.atmIds),
+        Reason: getReasonLabel(inc.reasonId),
+        Remark: inc.remark,
+      };
+
+      if (isPrivileged) {
+        data["Responsible Department"] = getDepartmentLabel(inc.reasonId);
+      }
+
+      return data;
+    });
     downloadCSV(exportData, "Incidents_Export");
   };
 
@@ -125,17 +159,17 @@ export const Incidents = () => {
               </CardTitle>
               <div className="flex items-center gap-2">
                 <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => {
-                    setFromDate(today);
-                    setToDate(today);
-                    setStatusFilter("ALL");
-                    setChannelFilter("ALL");
-                    setSelectedReasonIds([]);
-                    setPage(1);
-                  }}
-                  className="text-xs h-8"
+                   variant="ghost" 
+                   size="sm" 
+                   onClick={() => {
+                     setFromDate(today);
+                     setToDate(today);
+                     setStatusFilter("ALL");
+                     setChannelFilter("ALL");
+                     setSelectedReasonIds([]);
+                     setPage(1);
+                   }}
+                   className="text-xs h-8"
                 >
                   Clear All
                 </Button>
@@ -179,7 +213,7 @@ export const Incidents = () => {
                 <MultiSelect
                   selected={selectedReasonIds}
                   onChange={(ids) => { setSelectedReasonIds(ids); setPage(1); }}
-                  options={reasons.map(r => ({ value: r.id, label: r.description }))}
+                  options={reasons.map(r => ({ value: r.id, label: r.name }))}
                   placeholder="Filter Reasons..."
                 />
               </div>
@@ -187,69 +221,92 @@ export const Incidents = () => {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead>Business Date</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Downtime Window</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Reason</TableHead>
-                {canEdit && <TableHead className="text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pagedIncidents.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={canEdit ? 7 : 6} className="text-center h-24 text-muted-foreground">
-                    No incidents found for selected criteria.
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead>Business Date</TableHead>
+                  <TableHead>Channel</TableHead>
+                  <TableHead>Location (Branch/ATMs)</TableHead>
+                  <TableHead>Downtime Window</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Reason</TableHead>
+                  {isPrivileged && <TableHead>Responsible Dept</TableHead>}
+                  {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
-              ) : (
-                pagedIncidents.map((inc) => (
-                  <TableRow key={inc.id}>
-                    <TableCell className="font-medium">
-                      {getBusinessDate(inc.downtimeStart)}
+              </TableHeader>
+              <TableBody>
+                {pagedIncidents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={isPrivileged ? 9 : 8} className="text-center h-24 text-muted-foreground">
+                      No incidents found for selected criteria.
                     </TableCell>
-                    <TableCell>{inc.channel}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {format(new Date(inc.downtimeStart), "MMM dd, HH:mm")} <br />
-                      {inc.downtimeEnd ? format(new Date(inc.downtimeEnd), "MMM dd, HH:mm") : <span className="text-destructive font-semibold">ONGOING</span>}
-                    </TableCell>
-                    <TableCell>
-                      {inc.duration !== undefined ? `${inc.duration}m` : "--"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={inc.status} duration={inc.duration} />
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={inc.remark}>
-                      <span className="font-medium text-foreground block">{getReasonLabel(inc.reasonId)}</span>
-                      <span className="text-xs text-muted-foreground">{inc.remark}</span>
-                    </TableCell>
-                    {canEdit && (
-                      <TableCell className="text-right">
-                        {inc.status === Status.PENDING ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setResolvingId(inc.id)}
-                            className="bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200"
-                          >
-                            Resolve
-                          </Button>
+                  </TableRow>
+                ) : (
+                  pagedIncidents.map((inc) => (
+                    <TableRow key={inc.id}>
+                      <TableCell className="font-medium whitespace-nowrap">
+                        {getBusinessDate(inc.downtimeStart)}
+                      </TableCell>
+                      <TableCell>{inc.channel.replace("_", " ")}</TableCell>
+                      <TableCell>
+                        {inc.channel === Channel.ATM ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium">{getBranchLabel(inc.branchId)}</span>
+                            <span className="text-[10px] text-muted-foreground line-clamp-1" title={getAtmLabels(inc.atmIds)}>
+                              {getAtmLabels(inc.atmIds)}
+                            </span>
+                          </div>
                         ) : (
-                          <Button variant="ghost" size="sm" disabled className="opacity-50">
-                            Locked
-                          </Button>
+                          <span className="text-muted-foreground italic text-xs">N/A</span>
                         )}
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                        {format(new Date(inc.downtimeStart), "MMM dd, HH:mm")} <br />
+                        {inc.downtimeEnd ? format(new Date(inc.downtimeEnd), "MMM dd, HH:mm") : <span className="text-destructive font-semibold">ONGOING</span>}
+                      </TableCell>
+                      <TableCell>
+                        {inc.duration !== undefined ? `${inc.duration}m` : "--"}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={inc.status} duration={inc.duration} />
+                      </TableCell>
+                      <TableCell className="max-w-[200px]" title={inc.remark}>
+                        <span className="font-medium text-foreground block truncate">{getReasonLabel(inc.reasonId)}</span>
+                        <span className="text-xs text-muted-foreground line-clamp-1">{inc.remark}</span>
+                      </TableCell>
+                      {isPrivileged && (
+                        <TableCell>
+                          <span className="text-xs font-medium px-2 py-1 rounded-full bg-primary/5 text-primary">
+                            {getDepartmentLabel(inc.reasonId)}
+                          </span>
+                        </TableCell>
+                      )}
+                      {canEdit && (
+                        <TableCell className="text-right">
+                          {inc.status === Status.PENDING ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setResolvingId(inc.id)}
+                              className="bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200"
+                            >
+                              Resolve
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="sm" disabled className="opacity-50">
+                              Locked
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
           <Pagination
             currentPage={page}
             totalCount={filteredIncidents.length}

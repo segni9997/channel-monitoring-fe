@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useIncidentStore } from "@/store/incidentStore";
 import { useReasonStore } from "@/store/reasonStore";
+import { useBranchStore } from "@/store/branchStore";
+import { useATMStore } from "@/store/atmStore";
 import { useAuthStore } from "@/store/authStore";
 import { Channel } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 
@@ -16,6 +19,8 @@ interface AddIncidentModalProps {
 export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
   const { addIncident } = useIncidentStore();
   const { reasons } = useReasonStore();
+  const { branches } = useBranchStore();
+  const { atms } = useATMStore();
   const { user } = useAuthStore();
 
   const [downtimeStart, setDowntimeStart] = useState<string>(new Date().toISOString());
@@ -23,6 +28,12 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
   const [channel, setChannel] = useState<Channel>(Channel.ATM);
   const [reasonId, setReasonId] = useState("");
   const [remark, setRemark] = useState("");
+
+  // ATM specific states
+  const [branchId, setBranchId] = useState("");
+  const [atmIds, setAtmIds] = useState<string[]>([]);
+
+  const branchATMs = atms.filter(a => a.branchId === branchId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +45,9 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
       channel,
       reasonId,
       remark,
-      createdBy: user.id
+      createdBy: user.id,
+      branchId: channel === Channel.ATM ? branchId : undefined,
+      atmIds: channel === Channel.ATM ? atmIds : undefined,
     });
 
     onClose();
@@ -73,12 +86,39 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
               />
             </div>
 
+            {channel === Channel.ATM && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Branch *</label>
+                  <Select 
+                    value={branchId}
+                    onChange={(e) => {
+                      setBranchId(e.target.value);
+                      setAtmIds([]); // Reset selected ATMs when branch changes
+                    }}
+                    options={branches.map(b => ({ value: b.id, label: b.name }))}
+                    placeholder="Select Branch"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">ATMs *</label>
+                  <MultiSelect 
+                    selected={atmIds}
+                    onChange={setAtmIds}
+                    options={branchATMs.map(a => ({ value: a.id, label: `${a.name} (${a.terminalId})` }))}
+                    placeholder={branchId ? "Select ATMs..." : "Select Branch First"}
+                    className={!branchId ? "opacity-50 pointer-events-none" : ""}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Reason *</label>
               <Select
                 value={reasonId}
                 onChange={(e) => setReasonId(e.target.value)}
-                options={[{ value: "", label: "-- Select Reason --" }, ...reasons.map(r => ({ value: r.id, label: r.description }))]}
+                options={[{ value: "", label: "-- Select Reason --" }, ...reasons.map(r => ({ value: r.id, label: r.name }))]}
               />
             </div>
 
@@ -89,7 +129,9 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
           </CardContent>
           <CardFooter className="flex justify-end gap-2 border-t p-4 mt-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={!reasonId}>Save Incident</Button>
+            <Button type="submit" disabled={!reasonId || (channel === Channel.ATM && (!branchId || atmIds.length === 0))}>
+              Save Incident
+            </Button>
           </CardFooter>
         </form>
       </Card>

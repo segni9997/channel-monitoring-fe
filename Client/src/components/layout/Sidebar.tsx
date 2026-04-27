@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { LayoutDashboard, AlertCircle, Users, LogOut, List, Palette, ChevronDown, ChevronRight } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Users, LogOut, List, Palette, ChevronDown, ChevronRight, Building2 } from "lucide-react";
 import { Role } from "@/types";
 
 import { useThemeStore, type Theme } from "@/store/themeStore";
@@ -19,6 +19,7 @@ export const Sidebar = () => {
     { name: "Incidents", path: "/incidents", icon: AlertCircle, roles: [Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer] },
     { name: "Users", path: "/users", icon: Users, roles: [Role.super_admin, Role.admin] },
     { name: "Reasons", path: "/reasons", icon: List, roles: [Role.super_admin, Role.admin] },
+    { name: "Network", path: "/network", icon: Building2, roles: [Role.super_admin, Role.admin] },
   ];
 
   const allowedLinks = links.filter((l) => user && l.roles.includes(user.role));
