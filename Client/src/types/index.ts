@@ -36,9 +36,28 @@ export interface User {
     updated_at: string;
 }
 
+export interface Department {
+  id: string;
+  name: string;
+}
+
 export interface Reason {
   id: string;
-  description: string;
+  name: string;
+  departmentId: string;
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface ATM {
+  id: string;
+  name: string;
+  terminalId: string;
+  branchId: string;
 }
 
 export interface Incident {
@@ -51,4 +70,6 @@ export interface Incident {
   reasonId: string;
   createdBy: string;
   status: Status;
+  branchId?: string;
+  atmIds?: string[];
 }

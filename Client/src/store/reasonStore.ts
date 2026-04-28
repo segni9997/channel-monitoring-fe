@@ -8,7 +8,7 @@ export interface ReasonState {
   page: number;
   pageSize: number;
   addReason: (reason: Omit<Reason, "id">) => void;
-  updateReason: (id: string, description: string) => void;
+  updateReason: (id: string, updates: Partial<Omit<Reason, "id">>) => void;
   deleteReason: (id: string) => void;
   setPage: (page: number) => void;
   setPageSize: (size: number) => void;
@@ -26,9 +26,9 @@ export const useReasonStore = create<ReasonState>()(
         set((state) => ({
           reasons: [...state.reasons, { ...reason, id: `rsn_${Date.now()}` }],
         })),
-      updateReason: (id, description) =>
+      updateReason: (id, updates) =>
         set((state) => ({
-          reasons: state.reasons.map((r) => (r.id === id ? { ...r, description } : r)),
+          reasons: state.reasons.map((r) => (r.id === id ? { ...r, ...updates } : r)),
         })),
       deleteReason: (id) =>
         set((state) => ({
