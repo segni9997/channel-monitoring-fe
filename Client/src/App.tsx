@@ -1,9 +1,7 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { RootLayout } from "./components/layout/RootLayout";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
-import { Login } from "./pages/Login";
-import { SuperLogin } from "./pages/SuperLogin";
-// import { Dashboard } from "./pages/Dashboard";
+import { Dashboard } from "./pages/Dashboard";
 import { Incidents } from "./pages/Incidents";
 import { AdminUserMgmt } from "./pages/AdminUserMgmt";
 import { AdminReasonMgmt } from "./pages/AdminReasonMgmt";
@@ -16,28 +14,24 @@ import ErrorPage from "./components/shared/ErrorPages";
 const router = createBrowserRouter([
   {
     path: "/login",
-    element: <Login />,
-  },
-    {
-    path: "/admin/login",
     element: <AdminLogin />,
   },
   {
-    path: "/super-login",
-    element: <SuperLogin />,
+    path: "/admin/login",
+    element: <AdminLogin />,
   },
   {
     path: "/",
     element: <RootLayout />,
     children: [
-      // {
-      //   index: true,
-      //   element: (
-      //     <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer]}>
-      //       <Dashboard />
-      //     </ProtectedRoute>
-      //   ),
-      // },
+      {
+        index: true,
+        element: (
+          <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer]}>
+            <Dashboard />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "incidents",
         element: (

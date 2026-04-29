@@ -10,12 +10,12 @@ export const SuperLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const login = useAuthStore((state) => state.login);
+  const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(email, password)) {
+    if (user?.email === email && user?.password === password) {
       navigate("/");
     } else {
       setError("Invalid administrative credentials.");

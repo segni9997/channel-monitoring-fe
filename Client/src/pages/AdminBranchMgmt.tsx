@@ -1,6 +1,16 @@
 import { useState, useMemo } from "react";
-import { useBranchStore } from "@/store/branchStore";
-import { useATMStore } from "@/store/atmStore";
+import { 
+  useGetBranchesQuery, 
+  useCreateBranchMutation, 
+  useUpdateBranchMutation, 
+  useDeleteBranchMutation 
+} from "@/api/branchApi";
+import { 
+  useGetAtmsQuery, 
+  useCreateAtmMutation, 
+  useUpdateAtmMutation, 
+  useDeleteAtmMutation 
+} from "@/api/atmApi";
 import { type Branch, type ATM } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,11 +26,21 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Plus, Edit2, Trash2, Search, ArrowRightLeft, Building2, Monitor } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 
 export const AdminBranchMgmt = () => {
-  const { branches, addBranch, updateBranch, deleteBranch } = useBranchStore();
-  const { atms, addATM, updateATM, deleteATM, transferATM } = useATMStore();
+  const { data: branchesData } = useGetBranchesQuery();
+  const branches = Array.isArray(branchesData) ? branchesData : branchesData?.branches || [];
+  
+  const { data: atmsData } = useGetAtmsQuery();
+  const atms = Array.isArray(atmsData) ? atmsData : atmsData?.atms || [];
+
+  const [createBranch] = useCreateBranchMutation();
+  const [updateBranch] = useUpdateBranchMutation();
+  const [deleteBranch] = useDeleteBranchMutation();
+
+  const [createAtm] = useCreateAtmMutation();
+  const [updateAtm] = useUpdateAtmMutation();
+  const [deleteAtm] = useDeleteAtmMutation();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -34,7 +54,7 @@ export const AdminBranchMgmt = () => {
       
       const relatedAtms = atms.filter(a => a.branchId === b.id);
       const atmMatch = relatedAtms.some(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                           a.terminalId.toLowerCase().includes(searchQuery.toLowerCase()));
+                                           a.name.toLowerCase().includes(searchQuery.toLowerCase()));
       
       return branchMatch || atmMatch;
     });
@@ -58,44 +78,56 @@ export const AdminBranchMgmt = () => {
   const [newBranchId, setNewBranchId] = useState("");
 
   // Handlers
-  const handleSaveBranch = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveBranch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const name = formData.get("name") as string;
     const code = formData.get("code") as string;
 
-    if (editingBranch) {
-      updateBranch(editingBranch.id, { name, code });
-    } else {
-      addBranch({ name, code });
+    try {
+      if (editingBranch) {
+        await updateBranch({ id: editingBranch.id, body: { name, code } }).unwrap();
+      } else {
+        await createBranch({ name, code }).unwrap();
+      }
+      setIsBranchModalOpen(false);
+      setEditingBranch(null);
+    } catch (error) {
+      console.error("Failed to save branch", error);
     }
-    setIsBranchModalOpen(false);
-    setEditingBranch(null);
   };
 
-  const handleSaveAtm = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveAtm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const name = formData.get("name") as string;
-    const terminalId = formData.get("terminalId") as string;
     const branchId = selectedBranchIdForAtm;
 
-    if (editingAtm) {
-      updateATM(editingAtm.id, { name, terminalId, branchId });
-    } else {
-      addATM({ name, terminalId, branchId });
+    try {
+      if (editingAtm) {
+        // Send both branchId and branch_id just in case the API strictly expects snake_case
+        await updateAtm({ id: editingAtm.id, body: { name, branchId, branch_id: branchId } as any }).unwrap();
+      } else {
+        await createAtm({ name, branchId, branch_id: branchId } as any).unwrap();
+      }
+      setIsAtmModalOpen(false);
+      setEditingAtm(null);
+      setSelectedBranchIdForAtm("");
+    } catch (error) {
+      console.error("Failed to save ATM", error);
     }
-    setIsAtmModalOpen(false);
-    setEditingAtm(null);
-    setSelectedBranchIdForAtm("");
   };
 
-  const handleTransfer = () => {
+  const handleTransfer = async () => {
     if (transferringAtm && newBranchId) {
-      transferATM(transferringAtm.id, newBranchId);
-      setIsTransferModalOpen(false);
-      setTransferringAtm(null);
-      setNewBranchId("");
+      try {
+        await updateAtm({ id: transferringAtm.id, body: { branchId: newBranchId, branch_id: newBranchId } as any }).unwrap();
+        setIsTransferModalOpen(false);
+        setTransferringAtm(null);
+        setNewBranchId("");
+      } catch (error) {
+        console.error("Failed to transfer ATM", error);
+      }
     }
   };
 
@@ -151,7 +183,7 @@ export const AdminBranchMgmt = () => {
                 </TableRow>
               ) : (
                 pagedBranches.map((branch) => {
-                  const branchAtms = atms.filter(a => a.branchId === branch.id);
+                  const branchAtms = atms.filter((a: any) => String(a.branchId) === String(branch.id) || String(a.branch_id) === String(branch.id));
                   return (
                     <TableRow key={branch.id} className="align-top">
                       <TableCell>
@@ -160,7 +192,7 @@ export const AdminBranchMgmt = () => {
                             <Building2 className="h-4 w-4 text-muted-foreground" />
                             {branch.name}
                           </span>
-                          <span className="text-xs text-muted-foreground font-mono">Code: {branch.code}</span>
+                          {/* <span className="text-xs text-muted-foreground font-mono">Code: {branch.code}</span> */}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -175,7 +207,7 @@ export const AdminBranchMgmt = () => {
                                     <Monitor className="h-3 w-3" />
                                     {atm.name}
                                   </span>
-                                  <span className="text-[10px] text-muted-foreground font-mono">ID: {atm.terminalId}</span>
+
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Button 
@@ -206,7 +238,7 @@ export const AdminBranchMgmt = () => {
                                     variant="ghost" 
                                     size="icon" 
                                     className="h-7 w-7 text-destructive hover:text-destructive" 
-                                    onClick={() => deleteATM(atm.id)}
+                                    onClick={() => deleteAtm(String(atm.id))}
                                   >
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
@@ -296,10 +328,7 @@ export const AdminBranchMgmt = () => {
                   <label className="text-sm font-medium">ATM Name</label>
                   <Input name="name" defaultValue={editingAtm?.name} required placeholder="e.g. Entrance ATM" />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Terminal ID</label>
-                  <Input name="terminalId" defaultValue={editingAtm?.terminalId} required placeholder="e.g. T_MRK_01" />
-                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Branch</label>
                   <Select 
@@ -335,7 +364,7 @@ export const AdminBranchMgmt = () => {
                 <Select 
                   value={newBranchId}
                   onChange={(e) => setNewBranchId(e.target.value)}
-                  options={branches.filter(b => b.id !== transferringAtm.branchId).map(b => ({ value: b.id, label: `${b.name} (${b.code})` }))}
+                  options={branches.filter(b => b.id !== transferringAtm.branchId && b.id !== (transferringAtm as any).branch_id).map(b => ({ value: b.id, label: `${b.name} (${b.code})` }))}
                   placeholder="Select Target Branch"
                 />
               </div>

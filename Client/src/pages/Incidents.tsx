@@ -1,11 +1,9 @@
-import { useState, useMemo } from "react";
-import { useIncidentStore } from "@/store/incidentStore";
-import { useReasonStore } from "@/store/reasonStore";
-import { useBranchStore } from "@/store/branchStore";
-import { useATMStore } from "@/store/atmStore";
-import { useDepartmentStore } from "@/store/departmentStore";
+import { useState, useMemo, useEffect } from "react";
+import { useGetReasonsQuery } from "@/api/reasonApi";
+import { useGetChannelsQuery } from "@/api/channelApi";
+import { useGetDepartmentsQuery } from "@/api/departmentApi";
 import { useAuthStore } from "@/store/authStore";
-import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -26,98 +24,141 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useGetIncidentsQuery } from "@/api/incedentApi";
+
+
+// Live elapsed-time counter for in-progress incidents
+const LiveDuration = ({ startTime }: { startTime: string }) => {
+  const calcElapsed = () => {
+    const diffMs = Date.now() - new Date(startTime).getTime();
+    if (diffMs <= 0) return "0s";
+    const totalSecs = Math.floor(diffMs / 1000);
+    const d = Math.floor(totalSecs / 86400);
+    const h = Math.floor((totalSecs % 86400) / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    const parts: string[] = [];
+    if (d > 0) parts.push(`${d}d`);
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    parts.push(`${s}s`);
+    return parts.join(" ");
+  };
+
+  const [elapsed, setElapsed] = useState(calcElapsed);
+
+  useEffect(() => {
+    const timer = setInterval(() => setElapsed(calcElapsed()), 1000);
+    return () => clearInterval(timer);
+  }, [startTime]);
+
+  return (
+    <span className="font-mono text-xs text-destructive font-semibold animate-pulse">
+      ⏱ {elapsed}
+    </span>
+  );
+};
 
 export const Incidents = () => {
-  const { incidents, page, pageSize, setPage, setPageSize } = useIncidentStore();
-  const { reasons } = useReasonStore();
-  const { branches } = useBranchStore();
-  const { atms } = useATMStore();
-  const { departments } = useDepartmentStore();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const { data: reasonsData } = useGetReasonsQuery({});
+  const reasons = Array.isArray(reasonsData) ? reasonsData : reasonsData?.reasons || [];
+  const { data: channelsData } = useGetChannelsQuery();
+  const dynamicChannels = Array.isArray(channelsData) ? channelsData : channelsData?.channels || [];
+  const { data: deptsData } = useGetDepartmentsQuery();
+  const departments = Array.isArray(deptsData) ? deptsData : deptsData?.departments || [];
   const { user } = useAuthStore();
   
   // Date filtering states (defaulting to today's date)
   const today = format(new Date(), "yyyy-MM-dd");
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
-
-  // New filtering states
+  
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [channelFilter, setChannelFilter] = useState<string>("ALL");
   const [selectedReasonIds, setSelectedReasonIds] = useState<string[]>([]);
+  const { data } = useGetIncidentsQuery({
+    from_date: fromDate,
+    to_date: toDate ? `${toDate} 23:59:59` : undefined,
+    status: statusFilter !== "ALL" ? statusFilter.toLowerCase() : undefined,
+    channel: channelFilter !== "ALL" ? channelFilter : undefined,
+    reason_id: selectedReasonIds.length > 0 ? selectedReasonIds[0] : undefined,
+  });
+  console.log(data)
+  const apiIncidents: any[] = data?.incidents || [];
 
   // Modal states
   const [isAdding, setIsAdding] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
-  const getReasonLabel = (reasonId: string) => {
-    return reasons.find(r => r.id === reasonId)?.name || reasonId;
-  };
 
-  const getBranchLabel = (branchId?: string) => {
-    if (!branchId) return "--";
-    return branches.find(b => b.id === branchId)?.name || branchId;
-  };
-
-  const getAtmLabels = (atmIds?: string[]) => {
-    if (!atmIds || atmIds.length === 0) return "--";
-    return atmIds.map(id => atms.find(a => a.id === id)?.name || id).join(", ");
-  };
-
-  const getDepartmentLabel = (reasonId: string) => {
-    const reason = reasons.find(r => r.id === reasonId);
-    if (!reason) return "--";
-    return departments.find(d => d.id === reason.departmentId)?.name || "--";
-  };
 
   const isPrivileged = user?.role === Role.super_admin || user?.role === Role.admin || user?.role === Role.pms_offcier;
 
-  const filteredIncidents = useMemo(() => {
-    return incidents.filter((inc) => {
-      // Date Filter
-      if (fromDate && toDate) {
-        const incDate = new Date(inc.downtimeStart);
-        const startObj = startOfDay(new Date(fromDate));
-        const endObj = endOfDay(new Date(toDate));
-        if (!isWithinInterval(incDate, { start: startObj, end: endObj })) return false;
+  // Format duration into human-readable "Xd Xh Xm Xs"
+  // Handles: "90 mins", "90", 90 (treated as minutes), "01:30:00" (HH:mm:ss)
+  const formatDuration = (raw: string | number | undefined): string => {
+    if (raw === undefined || raw === null || raw === "") return "00:00:00";
+
+    let totalMinutes = 0;
+
+    if (typeof raw === "number") {
+      totalMinutes = raw;
+    } else {
+      const str = raw.trim();
+      // Handle HH:mm:ss format
+      if (/^\d+:\d{2}:\d{2}$/.test(str)) {
+        const [hh, mm, ss] = str.split(":").map(Number);
+        totalMinutes = hh * 60 + mm + ss / 60;
+      } else {
+        // Extract leading number from "90 mins", "90 minutes", "1.5", etc.
+        const match = str.match(/^[\d.]+/);
+        totalMinutes = match ? parseFloat(match[0]) : 0;
       }
+    }
 
-      // Status Filter
-      if (statusFilter !== "ALL" && inc.status !== statusFilter) return false;
+    if (totalMinutes <= 0) return "00:00:00";
 
-      // Channel Filter
-      if (channelFilter !== "ALL" && inc.channel !== channelFilter) return false;
+    const totalSecs = Math.round(totalMinutes * 60);
+    const d = Math.floor(totalSecs / 86400);
+    const h = Math.floor((totalSecs % 86400) / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
 
-      // Multi-Reason Filter
-      if (selectedReasonIds.length > 0 && !selectedReasonIds.includes(inc.reasonId)) return false;
+    const parts: string[] = [];
+    if (d > 0) parts.push(`${d}d`);
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+    return parts.join(" ");
+  };
 
-      return true;
-    });
-  }, [incidents, fromDate, toDate, statusFilter, channelFilter, selectedReasonIds]);
-
-  // Paged Data
+  // Paged Data (assuming API returns all filtered incidents and we paginate locally, or adjust if API paginates)
   const pagedIncidents = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filteredIncidents.slice(start, start + pageSize);
-  }, [filteredIncidents, page, pageSize]);
+    return apiIncidents.slice(start, start + pageSize);
+  }, [apiIncidents, page, pageSize]);
 
   const handleExport = () => {
-    const exportData = filteredIncidents.map((inc) => {
+    const exportData = apiIncidents.map((inc) => {
       const data: any = {
         ID: inc.id,
-        "Business Date": getBusinessDate(inc.downtimeStart),
-        "Start Time": format(new Date(inc.downtimeStart), "yyyy-MM-dd HH:mm"),
-        "End Time": inc.downtimeEnd ? format(new Date(inc.downtimeEnd), "yyyy-MM-dd HH:mm") : "PENDING",
-        Duration: inc.duration ?? "N/A",
+        "Business Date": getBusinessDate(inc.downTimeStart),
+        "Start Time": format(new Date(inc.downTimeStart), "yyyy-MM-dd HH:mm"),
+        "End Time": inc.downTimeEnd ? format(new Date(inc.downTimeEnd), "yyyy-MM-dd HH:mm") : "PENDING",
+        Duration: formatDuration(inc.duration),
         Channel: inc.channel,
         Status: inc.status,
-        Branch: getBranchLabel(inc.branchId),
-        ATMs: getAtmLabels(inc.atmIds),
-        Reason: getReasonLabel(inc.reasonId),
+        Branch: inc.branch?.name || inc.branch_id || "--",
+        ATMs: inc.atm?.name || inc.atm_id || "--",
+        Reason: inc.reason?.name || inc.reasonId || "--",
         Remark: inc.remark,
       };
 
       if (isPrivileged) {
-        data["Responsible Department"] = getDepartmentLabel(inc.reasonId);
+        data["Responsible Department"] = inc.reason?.responsible_dept || "--";
       }
 
       return data;
@@ -179,11 +220,30 @@ export const Incidents = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">From Date</label>
-                <DatePicker date={fromDate} onChange={(d) => { setFromDate(d); setPage(1); }} />
+                <DatePicker 
+                  date={fromDate} 
+                  onChange={(d) => { 
+                    setFromDate(d); 
+                    if (new Date(d) > new Date(toDate)) {
+                      setToDate(d);
+                    }
+                    setPage(1); 
+                  }} 
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">To Date</label>
-                <DatePicker date={toDate} onChange={(d) => { setToDate(d); setPage(1); }} />
+                <DatePicker 
+                  date={toDate} 
+                  onChange={(d) => { 
+                    if (new Date(d) < new Date(fromDate)) {
+                      setToDate(fromDate);
+                    } else {
+                      setToDate(d);
+                    }
+                    setPage(1); 
+                  }} 
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Status</label>
@@ -204,7 +264,9 @@ export const Incidents = () => {
                   onChange={(e) => { setChannelFilter(e.target.value); setPage(1); }}
                   options={[
                     { value: "ALL", label: "All Channels" },
-                    ...Object.values(Channel).map(c => ({ value: c, label: c.replace("_", " ") }))
+                    ...(dynamicChannels.length > 0
+                      ? dynamicChannels.map((c: any) => ({ value: c.name, label: c.name.replace("_", " ") }))
+                      : Object.values(Channel).map(c => ({ value: c, label: c.replace("_", " ") })))
                   ]}
                 />
               </div>
@@ -213,7 +275,7 @@ export const Incidents = () => {
                 <MultiSelect
                   selected={selectedReasonIds}
                   onChange={(ids) => { setSelectedReasonIds(ids); setPage(1); }}
-                  options={reasons.map(r => ({ value: r.id, label: r.name }))}
+                  options={reasons?.map((r: any) => ({ value: r.id, label: r.name })) ?? []}
                   placeholder="Filter Reasons..."
                 />
               </div>
@@ -247,15 +309,15 @@ export const Incidents = () => {
                   pagedIncidents.map((inc) => (
                     <TableRow key={inc.id}>
                       <TableCell className="font-medium whitespace-nowrap">
-                        {getBusinessDate(inc.downtimeStart)}
+                        {getBusinessDate(inc.downTimeStart)}
                       </TableCell>
                       <TableCell>{inc.channel.replace("_", " ")}</TableCell>
                       <TableCell>
                         {inc.channel === Channel.ATM ? (
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium">{getBranchLabel(inc.branchId)}</span>
-                            <span className="text-[10px] text-muted-foreground line-clamp-1" title={getAtmLabels(inc.atmIds)}>
-                              {getAtmLabels(inc.atmIds)}
+                            <span className="text-sm font-medium">{inc.branch?.name || inc.branch_id || "--"}</span>
+                            <span className="text-[10px] text-muted-foreground line-clamp-1" title={inc.atm?.name || inc.atm_id || "--"}>
+                              {inc.atm?.name || inc.atm_id || "--"}
                             </span>
                           </div>
                         ) : (
@@ -263,29 +325,34 @@ export const Incidents = () => {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                        {format(new Date(inc.downtimeStart), "MMM dd, HH:mm")} <br />
-                        {inc.downtimeEnd ? format(new Date(inc.downtimeEnd), "MMM dd, HH:mm") : <span className="text-destructive font-semibold">ONGOING</span>}
+                        {format(new Date(inc.downTimeStart), "MMM dd, HH:mm")} <br />
+                        {inc.downTimeEnd ? format(new Date(inc.downTimeEnd), "MMM dd, HH:mm") : <span className="text-destructive font-semibold">ONGOING</span>}
                       </TableCell>
                       <TableCell>
-                        {inc.duration !== undefined ? `${inc.duration}m` : "--"}
+                        {inc.status?.toLowerCase() === "inprogress" || inc.status?.toLowerCase() === "pending"
+                          ? <LiveDuration startTime={inc.downTimeStart} />
+                          : formatDuration(inc.duration)
+                        }
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={inc.status} duration={inc.duration} />
+                        <StatusBadge status={inc.status} duration={parseInt(inc.duration) || undefined} />
                       </TableCell>
                       <TableCell className="max-w-[200px]" title={inc.remark}>
-                        <span className="font-medium text-foreground block truncate">{getReasonLabel(inc.reasonId)}</span>
+                        <span className="font-medium text-foreground block truncate">{inc.reason?.name || inc.reasonId || "--"}</span>
                         <span className="text-xs text-muted-foreground line-clamp-1">{inc.remark}</span>
                       </TableCell>
                       {isPrivileged && (
                         <TableCell>
                           <span className="text-xs font-medium px-2 py-1 rounded-full bg-primary/5 text-primary">
-                            {getDepartmentLabel(inc.reasonId)}
+                            {departments.find((d: any) => String(d.id) === String(inc.reason?.responsible_dept))?.name
+                              || inc.reason?.responsible_dept
+                              || "--"}
                           </span>
                         </TableCell>
                       )}
                       {canEdit && (
                         <TableCell className="text-right">
-                          {inc.status === Status.PENDING ? (
+                          {inc.status?.toLowerCase() === "inprogress" || inc.status?.toLowerCase() === "pending" ? (
                             <Button
                               variant="outline"
                               size="sm"
@@ -309,7 +376,7 @@ export const Incidents = () => {
           </div>
           <Pagination
             currentPage={page}
-            totalCount={filteredIncidents.length}
+            totalCount={apiIncidents.length}
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}

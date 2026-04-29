@@ -22,10 +22,10 @@ export const dashboardApi = baseApi.injectEndpoints({
     // 🔵 DASHBOARD
     dashboard: builder.query<
       DashboardResponse,
-      { filter: "24hrs" | "day" | "week" | "month" | "year" }
+      { fromDate: string; toDate: string }
     >({
-      query: ({ filter }) => ({
-        url: `/admin/dashboard?filter=${filter}`,
+      query: ({ fromDate, toDate }) => ({
+        url: `/admin/dashboard?from=${fromDate}&to=${toDate}`,
         method: "GET",
       }),
     }),

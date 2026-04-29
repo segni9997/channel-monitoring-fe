@@ -12,28 +12,33 @@ export const Channel = {
   POS: "POS",
   INTERNET_BANKING: "INTERNET_BANKING",
   USSD: "USSD",
+  APP:"APP",
 } as const;
 
-export type Channel = (typeof Channel)[keyof typeof Channel];
+export type Channel = string;
+
+export interface AppChannel {
+  id: string;
+  name: string;
+}
 
 export const Status = {
-  PENDING: "PENDING",
-  COMPLETED: "COMPLETED",
+  PENDING: "InProgress",
+  COMPLETED: "Completed",
 } as const;
 
 export type Status = (typeof Status)[keyof typeof Status];
 
 export interface User {
-
-  password: string; // Added password for mock authentication
- id: number;
-    firstName: string;
-    lastName: string;
-    phoneNumber: string;
-    email: string;
-    role: Role;
-    created_at: string;
-    updated_at: string;
+  id: number;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  email: string;
+  role: Role;
+  password?: string; // Optional for mock authentication
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Department {
@@ -45,6 +50,7 @@ export interface Reason {
   id: string;
   name: string;
   departmentId: string;
+  channel: Channel;
 }
 
 export interface Branch {
@@ -70,6 +76,8 @@ export interface Incident {
   reasonId: string;
   createdBy: string;
   status: Status;
+  downTimeEnd?:string;
+  downTimeStart?:string;
   branchId?: string;
   atmIds?: string[];
 }
