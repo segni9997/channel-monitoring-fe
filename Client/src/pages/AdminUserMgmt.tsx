@@ -27,7 +27,7 @@ export const AdminUserMgmt = () => {
   const [isAdding, setIsAdding] = useState(false);
   const {data:users,isLoading,isError,refetch}= useGetUsersQuery()
   const [addUser, { isLoading: isAddingUser }] = useCreateUserMutation();
-  const [updateUser, { isLoading: isUpdatingUser }] = useUpdateUserMutation();
+  const [updateUser] = useUpdateUserMutation();
   // const [deleteUser, { isLoading: isDeletingUser }] = useDeleteUserMutuation();
   console.log("users", users)
   // Form states
@@ -71,7 +71,7 @@ export const AdminUserMgmt = () => {
     }
 
     if (isAdding) {
-      addUser(formData as Omit<User, "id"| "created_at"| "updated_at">);
+      addUser(formData as Omit<User, "id" | "created_at" | "updated_at"> & { password: string });
       refetch();
     } else if (editingId) {
       updateUser({id:Number(editingId),data:formData as Omit<User, "password" > });

@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { useIncidentStore } from "@/store/incidentStore";
-import { useReasonStore } from "@/store/reasonStore";
-import { useBranchStore } from "@/store/branchStore";
-import { useATMStore } from "@/store/atmStore";
+import { format } from "date-fns";
+import { useGetReasonsQuery } from "@/api/reasonApi";
+import { useGetBranchesQuery } from "@/api/branchApi";
+import { useGetAtmsQuery } from "@/api/atmApi";
+import { useGetChannelsQuery } from "@/api/channelApi";
+import { 
+  useCreateIncidentMutation, 
+  useCreateAtmIncidentMutation, 
+  useUpdateIncidentMutation 
+} from "@/api/incedentApi";
 import { useAuthStore } from "@/store/authStore";
 import { Channel } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -17,11 +23,14 @@ interface AddIncidentModalProps {
 }
 
 export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
-  const { addIncident } = useIncidentStore();
-  const { reasons } = useReasonStore();
-  const { branches } = useBranchStore();
-  const { atms } = useATMStore();
   const { user } = useAuthStore();
+  const { data: branchesData } = useGetBranchesQuery();
+  const branches = Array.isArray(branchesData) ? branchesData : branchesData?.branches || [];
+  const { data: channelsData } = useGetChannelsQuery();
+  const channels = Array.isArray(channelsData) ? channelsData : channelsData?.channels || [];
+
+  const [createIncident] = useCreateIncidentMutation();
+  const [createAtmIncident] = useCreateAtmIncidentMutation();
 
   const [downtimeStart, setDowntimeStart] = useState<string>(new Date().toISOString());
   const [downtimeEnd, setDowntimeEnd] = useState<string>("");
@@ -33,24 +42,56 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
   const [branchId, setBranchId] = useState("");
   const [atmIds, setAtmIds] = useState<string[]>([]);
 
-  const branchATMs = atms.filter(a => a.branchId === branchId);
+  // Derive the numeric channel ID from the selected channel name to filter reasons
+  const selectedChannelId = channels.find((c: any) => c.name === channel)?.id;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { data: reasonsData } = useGetReasonsQuery(
+    { channel_id: selectedChannelId ? String(selectedChannelId) : undefined },
+    { skip: !selectedChannelId }
+  );
+  const reasons = Array.isArray(reasonsData) ? reasonsData : reasonsData?.reasons || [];
+
+  const { data: atmsData } = useGetAtmsQuery({ branch_id: branchId }, { skip: !branchId });
+  const branchATMs = Array.isArray(atmsData) ? atmsData : atmsData?.atms || [];
+
+  // Detect if ATM channel is selected (by name, since channels are dynamic)
+  const isAtmChannel = channel.toUpperCase() === "ATM";
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!downtimeStart || !reasonId || !user) return;
 
-    addIncident({
-      downtimeStart,
-      downtimeEnd: downtimeEnd || undefined,
-      channel,
-      reasonId,
-      remark,
-      createdBy: user.id,
-      branchId: channel === Channel.ATM ? branchId : undefined,
-      atmIds: channel === Channel.ATM ? atmIds : undefined,
-    });
+    // Format date to API expected format: "yyyy-MM-dd HH:mm:ss"
+    const formatDate = (iso: string) => format(new Date(iso), "yyyy-MM-dd HH:mm:ss");
 
-    onClose();
+    try {
+      if (isAtmChannel) {
+        await createAtmIncident({
+          createdBy: Number(user.id),
+          downTimeStart: formatDate(downtimeStart),
+          downTimeEnd: downtimeEnd ? formatDate(downtimeEnd) : undefined,
+          channel,
+          reasonId: Number(reasonId),
+          branch_id: Number(branchId),
+          atm_id: atmIds.length > 0 ? Number(atmIds[0]) : undefined,
+          remark,
+          status: "inprogress",
+        } as any).unwrap();
+      } else {
+        await createIncident({
+          createdBy: Number(user.id),
+          downTimeStart: formatDate(downtimeStart),
+          downTimeEnd: downtimeEnd ? formatDate(downtimeEnd) : undefined,
+          channel,
+          reasonId: Number(reasonId),
+          remark,
+          status: "inprogress",
+        } as any).unwrap();
+      }
+      onClose();
+    } catch (error) {
+      console.error("Failed to create incident", error);
+    }
   };
 
   return (
@@ -81,12 +122,18 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
               <label className="text-sm font-medium">Channel *</label>
               <Select
                 value={channel}
-                onChange={(e) => setChannel(e.target.value as Channel)}
-                options={Object.values(Channel).map(c => ({ value: c, label: c.replace("_", " ") }))}
+                onChange={(e) => {
+                  setChannel(e.target.value as Channel);
+                  setReasonId("");
+                }}
+                options={channels.length > 0 
+                  ? channels.map((c: any) => ({ value: c.name, label: c.name.replace("_", " ") }))
+                  : Object.values(Channel).map(c => ({ value: c, label: c.replace("_", " ") }))
+                }
               />
             </div>
 
-            {channel === Channel.ATM && (
+            {isAtmChannel && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Branch *</label>
@@ -105,7 +152,7 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
                   <MultiSelect 
                     selected={atmIds}
                     onChange={setAtmIds}
-                    options={branchATMs.map(a => ({ value: a.id, label: `${a.name} (${a.terminalId})` }))}
+                    options={branchATMs.map(a => ({ value: a.id, label: a.name }))}
                     placeholder={branchId ? "Select ATMs..." : "Select Branch First"}
                     className={!branchId ? "opacity-50 pointer-events-none" : ""}
                   />
@@ -118,7 +165,7 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
               <Select
                 value={reasonId}
                 onChange={(e) => setReasonId(e.target.value)}
-                options={[{ value: "", label: "-- Select Reason --" }, ...reasons.map(r => ({ value: r.id, label: r.name }))]}
+                options={[{ value: "", label: "-- Select Reason --" }, ...reasons.map((r: any) => ({ value: String(r.id), label: r.name }))]}
               />
             </div>
 
@@ -129,7 +176,7 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
           </CardContent>
           <CardFooter className="flex justify-end gap-2 border-t p-4 mt-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={!reasonId || (channel === Channel.ATM && (!branchId || atmIds.length === 0))}>
+            <Button type="submit" disabled={!reasonId || (isAtmChannel && (!branchId || atmIds.length === 0))}>
               Save Incident
             </Button>
           </CardFooter>
@@ -140,18 +187,28 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
 };
 
 export const ResolveIncidentModal = ({ incidentId, onClose }: { incidentId: string, onClose: () => void }) => {
-  const { updateIncident } = useIncidentStore();
   const [downtimeEnd, setDowntimeEnd] = useState<string>(new Date().toISOString());
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [updateIncident] = useUpdateIncidentMutation();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!downtimeEnd) return;
 
-    updateIncident(incidentId, {
-      downtimeEnd
-    });
+    const formatDate = (iso: string) => format(new Date(iso), "yyyy-MM-dd HH:mm:ss");
 
-    onClose();
+    try {
+      await updateIncident({
+        id: incidentId,
+        body: {
+          downTimeEnd: formatDate(downtimeEnd),
+          status: "Completed",
+        }
+      }).unwrap();
+      onClose();
+    } catch (error) {
+      console.error("Failed to resolve incident", error);
+    }
   };
 
   return (
