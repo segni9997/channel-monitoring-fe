@@ -32,10 +32,30 @@ export const AdminUserMgmt = () => {
   console.log("users", users)
   // Form states
   const [formData, setFormData] = useState<Partial<User>>({});
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!searchQuery.trim()) return users;
+
+    const query = searchQuery.toLowerCase().trim();
+    return users.filter((u) => {
+      const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+      const roleName = u.role.toLowerCase().replace("_", " ");
+      return (
+        fullName.includes(query) ||
+        u.email.toLowerCase().includes(query) ||
+        u.phoneNumber.toLowerCase().includes(query) ||
+        roleName.includes(query)
+      );
+    });
+  }, [users, searchQuery]);
+
   const pagedUsers = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return users?.slice(start, start + pageSize) || [];
-  }, [users, page, pageSize]);
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, page, pageSize]);
 
   if (isLoading) return <div className="flex justify-center items-center h-screen"><Loader/></div>;
   if (isError) return <div className="flex justify-center items-center h-screen">error</div>;
@@ -100,9 +120,41 @@ export const AdminUserMgmt = () => {
           <h1 className="text-3xl font-bold tracking-tight">System Users</h1>
           <p className="text-muted-foreground mt-1">Manage personnel access and roles.</p>
         </div>
-        <Button onClick={startAdd} disabled={isAdding || !!editingId}>
-          <Plus className="mr-2 h-4 w-4" /> Add User
-        </Button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-10 shadow-sm border-accent/20 focus-visible:ring-accent"
+            />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <Button onClick={startAdd} disabled={isAdding || !!editingId} className="shadow-lg shadow-primary/20">
+            <Plus className="mr-2 h-4 w-4" /> Add User
+          </Button>
+        </div>
       </div>
 
       <Card className="shadow-sm">
@@ -111,152 +163,154 @@ export const AdminUserMgmt = () => {
           <CardDescription>A list of all users and their configured roles within the platform.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>First Name</TableHead>
-                <TableHead>Last Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Password</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isAdding && (
-                <TableRow className="bg-muted/50">
-                  <TableCell>
-                    <Input value={formData.firstName || ""} onChange={(e) => handleNameChange("firstName", e.target.value)} placeholder="First Name" />
-                  </TableCell>
-                  <TableCell>
-                    <Input value={formData.lastName || ""} onChange={(e) => handleNameChange("lastName", e.target.value)} placeholder="Last Name" />
-                  </TableCell>
-                  <TableCell>
-                    <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="Email" />
-                  </TableCell>
-                  <TableCell>
-                    <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} placeholder="Phone" />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
-                      options={[
-                        ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
-                        { value: Role.pms_offcier, label: "PMS Officer" },
-                        { value: Role.epayment_officer, label: "E-Payment Officer" }
-                      ]}
-                    />
-
-                    
-                  </TableCell>
-                  <TableCell>
-                    <Input 
-                      type="password" 
-                      value={formData.password || ""} 
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
-                      placeholder="Password" 
-                    />
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                      {isAddingUser  ? <Loader/> : <>   <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button></>}
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>First Name</TableHead>
+                  <TableHead>Last Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Password</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-              {pagedUsers.map((u) => {
-                const isEditing = editingId === u.id.toString();
-                return (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">
-                      {isEditing ? <Input value={formData.firstName || ""} onChange={(e) => handleNameChange("firstName", e.target.value)} /> : u.firstName}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {isEditing ? <Input value={formData.lastName || ""} onChange={(e) => handleNameChange("lastName", e.target.value)} /> : u.lastName}
+              </TableHeader>
+              <TableBody>
+                {isAdding && (
+                  <TableRow className="bg-muted/50">
+                    <TableCell>
+                      <Input value={formData.firstName || ""} onChange={(e) => handleNameChange("firstName", e.target.value)} placeholder="First Name" />
                     </TableCell>
                     <TableCell>
-                      {isEditing ? <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /> : u.email}
+                      <Input value={formData.lastName || ""} onChange={(e) => handleNameChange("lastName", e.target.value)} placeholder="Last Name" />
                     </TableCell>
                     <TableCell>
-                      {isEditing ? <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} /> : u.phoneNumber}
+                      <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="Email" />
                     </TableCell>
                     <TableCell>
-                      {isEditing ? (
-                        <Select
-                          value={formData.role}
-                          onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
-                          options={[
-                            ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
-                            { value: Role.pms_offcier, label: "PMS Officer" },
-                            { value: Role.epayment_officer, label: "E-Payment Officer" }
-                          ]}
-                        />
-                      ) : (
-                        <Badge variant={u.role === Role.admin ? "default" : "secondary"}>
-                          {u.role.replace("_", " ")}
-                        </Badge>
-                      )}
+                      <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} placeholder="Phone" />
                     </TableCell>
                     <TableCell>
-                      {isEditing ? (
-                        <Input 
-                          type="password" 
-                          value={formData.password || ""} 
-                          onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
-                          placeholder="New password" 
-                        />
-                      ) : (
-                        <span className="text-muted-foreground italic text-xs">********</span>
-                      )}
+                      <Select
+                        value={formData.role}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
+                        options={[
+                          ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
+                          { value: Role.pms_offcier, label: "PMS Officer" },
+                          { value: Role.epayment_officer, label: "E-Payment Officer" }
+                        ]}
+                      />
+
+                      
+                    </TableCell>
+                    <TableCell>
+                      <Input 
+                        type="password" 
+                        value={formData.password || ""} 
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                        placeholder="Password" 
+                      />
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      {isEditing ? (
-                        <>
-                          <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => startEdit(u)} 
-                            disabled={
-                              !!editingId || 
-                              isAdding || 
-                              u.id === currentUser?.id || 
-                              (currentUser?.role === Role.admin && (u.role === Role.admin || u.role === Role.super_admin))
-                            } 
-                            className="text-muted-foreground hover:text-primary"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            // onClick={() => deleteUser(u.id.toString())} 
-                            disabled={
-                              !!editingId || 
-                              isAdding || 
-                              u.id === currentUser?.id ||
-                              (currentUser?.role === Role.admin && (u.role === Role.admin || u.role === Role.super_admin))
-                            } 
-                            className="text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
+                        {isAddingUser  ? <Loader/> : <>   <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button></>}
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                )}
+                {pagedUsers.map((u) => {
+                  const isEditing = editingId === u.id.toString();
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium">
+                        {isEditing ? <Input value={formData.firstName || ""} onChange={(e) => handleNameChange("firstName", e.target.value)} /> : u.firstName}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {isEditing ? <Input value={formData.lastName || ""} onChange={(e) => handleNameChange("lastName", e.target.value)} /> : u.lastName}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /> : u.email}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} /> : u.phoneNumber}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <Select
+                            value={formData.role}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
+                            options={[
+                              ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
+                              { value: Role.pms_offcier, label: "PMS Officer" },
+                              { value: Role.epayment_officer, label: "E-Payment Officer" }
+                            ]}
+                          />
+                        ) : (
+                          <Badge variant={u.role === Role.admin ? "default" : "secondary"}>
+                            {u.role.replace("_", " ")}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <Input 
+                            type="password" 
+                            value={formData.password || ""} 
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                            placeholder="New password" 
+                          />
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">********</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        {isEditing ? (
+                          <>
+                            <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => startEdit(u)} 
+                              disabled={
+                                !!editingId || 
+                                isAdding || 
+                                u.id === currentUser?.id || 
+                                (currentUser?.role === Role.admin && (u.role === Role.admin || u.role === Role.super_admin))
+                              } 
+                              className="text-muted-foreground hover:text-primary"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              // onClick={() => deleteUser(u.id.toString())} 
+                              disabled={
+                                !!editingId || 
+                                isAdding || 
+                                u.id === currentUser?.id ||
+                                (currentUser?.role === Role.admin && (u.role === Role.admin || u.role === Role.super_admin))
+                              } 
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
           <Pagination
             currentPage={page}
-            totalCount={users?.length || 0}
+            totalCount={filteredUsers.length}
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}

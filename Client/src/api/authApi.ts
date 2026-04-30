@@ -33,19 +33,45 @@ export const authApi = baseApi.injectEndpoints({
       }),
     }),
 
-    // 🟢 LOGIN
-    adminlogin: builder.mutation<LoginResponse, LoginRequest>({
+    // 🟢 LOGIN ENDPOINTS
+    superAdminLogin: builder.mutation<LoginResponse, LoginRequest>({
+      query: (credentials) => ({
+        url: "/login/super-admin",
+        method: "POST",
+        body: credentials,
+      }),
+    }),
+
+    adminLogin: builder.mutation<LoginResponse, LoginRequest>({
       query: (credentials) => ({
         url: "/login/admin",
         method: "POST",
         body: credentials,
       }),
     }),
-      userlogin: builder.mutation<LoginResponse, LoginRequest>({
+
+    userLogin: builder.mutation<LoginResponse, LoginRequest>({
       query: (credentials) => ({
-        url: "/login/users",
+        url: "/login/user",
         method: "POST",
         body: credentials,
+      }),
+    }),
+
+    // 🟢 GET CURRENT USER
+    getMe: builder.query<LoginResponse["user"], void>({
+      query: () => ({
+        url: "/user",
+        method: "GET",
+      }),
+    }),
+
+    // 🟢 CHANGE PASSWORD
+    changePassword: builder.mutation<{ message: string }, { old_password: string; new_password: string; new_password_confirmation: string }>({
+      query: (body) => ({
+        url: "/settings/change-password",
+        method: "POST",
+        body,
       }),
     }),
   }),
@@ -53,6 +79,9 @@ export const authApi = baseApi.injectEndpoints({
 
 export const {
   useSignupMutation,
-  useAdminloginMutation,
-  useUserloginMutation,
+  useSuperAdminLoginMutation,
+  useAdminLoginMutation,
+  useUserLoginMutation,
+  useGetMeQuery,
+  useChangePasswordMutation,
 } = authApi;

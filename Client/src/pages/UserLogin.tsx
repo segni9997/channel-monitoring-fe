@@ -1,25 +1,25 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { ShieldAlert } from "lucide-react";
-import { useSuperAdminLoginMutation } from "@/api/authApi";
+import { useUserLoginMutation } from "@/api/authApi";
+import { UserCircle } from "lucide-react";
 
-export const SuperLogin = () => {
+export const UserLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const setUser = useAuthStore((state) => state.setUser);
   const navigate = useNavigate();
-  const [superAdminLogin, { isLoading }] = useSuperAdminLoginMutation();
+  const [userLogin, { isLoading }] = useUserLoginMutation();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
-      const res = await superAdminLogin({ email, password }).unwrap();
+      const res = await userLogin({ email, password }).unwrap();
       
       // ✅ Save to Zustand
       setUser(res.user);
@@ -32,70 +32,61 @@ export const SuperLogin = () => {
       navigate("/");
     } catch (err: any) {
       console.error(err);
-      setError(err?.data?.message || "Invalid administrative credentials.");
+      setError(err?.data?.message || "Invalid email or password");
     }
   };
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
-      {/* Background decoration for Super Login */}
-      <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-      
-      <Card className="w-full max-w-md shadow-2xl bg-background/80 backdrop-blur-xl border-primary/20">
+    <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4 relative">
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 mx-auto opacity-5 pointer-events-none">
+        <img src="/bg1.png" alt="" className="w-full h-full object-cover" />
+      </div>
+      <Card className="w-full max-w-md shadow-lg bg-background/50 backdrop-blur-sm">
         <CardHeader className="space-y-1 text-center">
           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-            <ShieldAlert className="h-6 w-6 text-primary" />
+            <UserCircle className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">Privileged Access</CardTitle>
+          <CardTitle className="text-3xl font-bold tracking-tight">Sign in</CardTitle>
           <CardDescription>
-            System Owner & Root Authorization
+            Officer & PMS Portal Access
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4 text-left">
             {error && (
-              <div className="text-xs font-medium text-destructive bg-destructive/10 p-2 rounded border border-destructive/20 text-center">
+              <div className="text-sm font-medium text-destructive bg-destructive/10 p-3 rounded-lg border border-destructive/20">
                 {error}
               </div>
             )}
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium leading-none">
-                Identity (Email)
+                Email
               </label>
               <Input
                 id="email"
-                type="text"
-                placeholder="root@system"
+                type="email"
+                placeholder="name@berhanbanksc.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-background/50"
                 required
               />
             </div>
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium leading-none">
-                Access Key
+                Password
               </label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-background/50"
                 required
               />
             </div>
-            
-            <div className="pt-2">
-              <div className="p-3 rounded-md bg-secondary/50 border border-border text-[10px] text-muted-foreground">
-                <p>Establishing secure tunnel... identity validation required for root privileges. Domain restrictions are bypassed for this gateway.</p>
-              </div>
-            </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full shadow-lg shadow-primary/20" disabled={isLoading}>
-              {isLoading ? "Authorizing..." : "Authorize Root Access"}
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign in"}
             </Button>
           </CardFooter>
         </form>

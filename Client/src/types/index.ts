@@ -1,7 +1,7 @@
 export const Role = {
   super_admin: "superAdmin",
   admin: "admin",
-  pms_offcier: "offcier",
+  pms_offcier: "officer",
   epayment_officer: "pms",
 } as const;
 
@@ -23,8 +23,8 @@ export interface AppChannel {
 }
 
 export const Status = {
-  PENDING: "InProgress",
-  COMPLETED: "Completed",
+  PENDING: "inProgress",
+  COMPLETED: "completed",
 } as const;
 
 export type Status = (typeof Status)[keyof typeof Status];
