@@ -10,7 +10,7 @@ import {
   useUpdateIncidentMutation 
 } from "@/api/incedentApi";
 import { useAuthStore } from "@/store/authStore";
-import { Channel } from "@/types";
+import { Channel, Status } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -202,7 +202,7 @@ export const ResolveIncidentModal = ({ incidentId, onClose }: { incidentId: stri
         id: incidentId,
         body: {
           downTimeEnd: formatDate(downtimeEnd),
-          status: "Completed",
+          status: Status.COMPLETED,
         }
       }).unwrap();
       onClose();

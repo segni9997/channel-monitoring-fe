@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { useAdminloginMutation } from "@/api/authApi";
+import { useAdminLoginMutation } from "@/api/authApi";
 
 export const AdminLogin = () => {
   const [email, setEmail] = useState("");
@@ -12,7 +12,7 @@ export const AdminLogin = () => {
   const [error, setError] = useState("");
   const setUser = useAuthStore((state) => state.setUser);
   const navigate = useNavigate();
- const [adminLogin ,{isLoading}] = useAdminloginMutation()
+ const [adminLogin ,{isLoading}] = useAdminLoginMutation()
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     if (val.endsWith("@")) {
