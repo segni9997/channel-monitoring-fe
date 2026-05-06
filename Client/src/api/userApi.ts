@@ -59,6 +59,33 @@ export const usersApi = baseApi.injectEndpoints({
     //   invalidatesTags: ["Users"],
     }),
 
+    // 🔴 TOGGLE ADMIN STATUS (Super Admin only)
+    toggleAdminStatus: builder.mutation<any, { id: number | string }>({
+      query: ({ id }) => ({
+        url: `/super-admin/admins/${id}/toggle-status`,
+        method: "PATCH",
+      }),
+      invalidatesTags: ["Admin", "User"],
+    }),
+
+    // 🟢 CREATE ADMIN USER (Super Admin only)
+    createAdmin: builder.mutation<
+      any,
+      {
+        firstName: string;
+        lastName: string;
+        email: string;
+        phoneNumber: string;
+        password: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/super-admin/admins",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Admin", "User"],
+    }),
   }),
   overrideExisting: false,
 });
@@ -67,4 +94,6 @@ export const {
   useGetUsersQuery,
   useCreateUserMutation,
   useUpdateUserMutation,
+  useToggleAdminStatusMutation,
+  useCreateAdminMutation,
 } = usersApi;

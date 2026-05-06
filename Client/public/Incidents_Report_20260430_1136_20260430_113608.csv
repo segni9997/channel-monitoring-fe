@@ -1,0 +1,4 @@
+Business Date,Channel,Branch,ATM,Downtime Start,Downtime End,Duration,Status,Reason,Remark,Responsible Department
+2026-04-29,ATM,Mexico,MEXICO01,2026-04-30 06:45:16,2026-04-30 07:01:21,16m 5s,completed,Network Cable,--,DFS
+2026-04-30,ATM,Bole,BOLE01,2026-04-30 10:42:10,2026-04-30 10:43:47,1m 37s,completed,Network Cable,--,DFS
+2026-04-30,ATM,Mexico,MEXICO01,2026-04-30 10:56:57,ONGOING,ONGOING,inprogress,Maintenance,--,MOTI

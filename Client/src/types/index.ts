@@ -36,6 +36,7 @@ export interface User {
   phoneNumber: string;
   email: string;
   role: Role;
+  is_active?: boolean;
   password?: string; // Optional for mock authentication
   created_at: string;
   updated_at: string;

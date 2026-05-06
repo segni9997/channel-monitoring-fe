@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { LayoutDashboard, AlertCircle, Users, LogOut, List, Palette, ChevronDown, ChevronRight, GitBranchPlusIcon, KeyRound, X } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Users, LogOut, List, Palette, ChevronDown, ChevronRight, GitBranchPlusIcon, KeyRound, X, Settings, ScrollText, ShieldCheck } from "lucide-react";
 import { Role } from "@/types";
 
 import { useThemeStore, type Theme } from "@/store/themeStore";
@@ -25,6 +25,9 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { name: "Users", path: "/users", icon: Users, roles: [Role.super_admin, Role.admin] },
     { name: "Reasons", path: "/reasons", icon: List, roles: [Role.super_admin, Role.admin] },
     { name: "Branch and ATM", path: "/network", icon: GitBranchPlusIcon, roles: [Role.super_admin, Role.admin] },
+    { name: "Settings", path: "/settings", icon: Settings, roles: [Role.super_admin, Role.admin] },
+    { name: "Audit Logs", path: "/audit-logs", icon: ScrollText, roles: [Role.super_admin] },
+    { name: "Admin Accounts", path: "/admin-accounts", icon: ShieldCheck, roles: [Role.super_admin] },
     { name: "Change Password", path: "/settings/change-password", icon: KeyRound, roles: [Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer] },
   ];
 
