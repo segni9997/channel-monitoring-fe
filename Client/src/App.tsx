@@ -6,6 +6,9 @@ import { Incidents } from "./pages/Incidents";
 import { AdminUserMgmt } from "./pages/AdminUserMgmt";
 import { AdminReasonMgmt } from "./pages/AdminReasonMgmt";
 import { AdminBranchMgmt } from "./pages/AdminBranchMgmt";
+import { AdminSettings } from "./pages/AdminSettings";
+import { AuditLogs } from "./pages/AuditLogs";
+import { SuperAdminUserMgmt } from "./pages/SuperAdminUserMgmt";
 import { Role } from "./types";
 import { AdminLogin } from "./pages/AdminLogin";
 import { SuperLogin } from "./pages/SuperLogin";
@@ -81,6 +84,30 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer]}>
             <ChangePassword />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "settings",
+        element: (
+          <ProtectedRoute allowedRoles={[Role.super_admin, Role.admin]}>
+            <AdminSettings />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "audit-logs",
+        element: (
+          <ProtectedRoute allowedRoles={[Role.super_admin]}>
+            <AuditLogs />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "admin-accounts",
+        element: (
+          <ProtectedRoute allowedRoles={[Role.super_admin]}>
+            <SuperAdminUserMgmt />
           </ProtectedRoute>
         ),
       },

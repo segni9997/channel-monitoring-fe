@@ -51,13 +51,39 @@ const { data } = useDashboardQuery(
       value: val.total_downtime,
     }));
   }, [data?.downtime_per_channel]);
-  const chartData = Object.entries(data?.incident_trends || {}).map(
-  ([date, count]) => ({
-    date,
-    count,
-  })
-);
 
+  const chartData = Object.entries(data?.incident_trends || {}).map(
+    ([date, count]) => ({ date, count })
+  );
+
+  // ATM vs Other downtime split
+  const { atmDowntime, otherDowntime } = useMemo(() => {
+    if (!data?.downtime_per_channel) return { atmDowntime: 0, otherDowntime: 0 };
+    let atm = 0;
+    let other = 0;
+    Object.entries(data.downtime_per_channel).forEach(([key, val]) => {
+      if (key.toUpperCase() === "ATM") {
+        atm += val.total_downtime;
+      } else {
+        other += val.total_downtime;
+      }
+    });
+    return { atmDowntime: atm, otherDowntime: other };
+  }, [data?.downtime_per_channel]);
+
+  // Uptime % — derived from the selected date range
+  const uptimePercent = useMemo(() => {
+    if (!fromDate || !toDate || totalDowntime === 0) return null;
+    try {
+      const from = new Date(fromDate);
+      const to = new Date(toDate);
+      const periodMinutes = Math.max(1, (to.getTime() - from.getTime()) / 60000);
+      const uptime = Math.max(0, ((periodMinutes - totalDowntime) / periodMinutes) * 100);
+      return uptime.toFixed(2);
+    } catch {
+      return null;
+    }
+  }, [fromDate, toDate, totalDowntime]);
 
   return (
     <div className="space-y-6 ">
@@ -82,6 +108,7 @@ const { data } = useDashboardQuery(
         </div>
       </div>
 
+      {/* Row 1 — core KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-t-4 border-accent shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -120,6 +147,50 @@ const { data } = useDashboardQuery(
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-serif text-green-600">{completedIncidents}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 2 — ATM vs Other + Uptime % */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border-t-4 border-blue-400 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">ATM Downtime</CardTitle>
+            <Clock className="h-4 w-4 text-blue-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-serif text-blue-500">
+              {atmDowntime} <span className="text-sm font-normal text-muted-foreground">mins</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">ATM channel incidents</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-t-4 border-orange-400 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Other Channels Downtime</CardTitle>
+            <Clock className="h-4 w-4 text-orange-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-serif text-orange-500">
+              {otherDowntime} <span className="text-sm font-normal text-muted-foreground">mins</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Mobile, POS, Internet & more</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-t-4 border-green-400 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Uptime %</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-serif text-green-600">
+              {uptimePercent !== null ? `${uptimePercent}%` : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {uptimePercent !== null ? "Based on selected date range" : "Select a date range to calculate"}
+            </p>
           </CardContent>
         </Card>
       </div>
