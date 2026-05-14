@@ -23,7 +23,27 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { useDashboardQuery } from "@/api/dashbaordApi";
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const COLORS = [
+  '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8',
+  '#82ca9d', '#ff6b6b', '#6c5ce7', '#00b894', '#fdcb6e',
+  '#e17055', '#74b9ff', '#a29bfe', '#55efc4', '#ffeaa7',
+  '#fd79a8', '#00cec9', '#e84393', '#2d3436', '#b2bec3',
+  '#d63031', '#0984e3', '#6ab04c', '#f9ca24', '#f0932b',
+  '#eb4d4b', '#22a6b3', '#be2edd', '#4834d4', '#30336b',
+];
+
+// Convert raw minutes to "Xd Xh Xm" format
+const formatMinutes = (totalMins: number): string => {
+  if (!totalMins || totalMins <= 0) return "0m";
+  const d = Math.floor(totalMins / 1440);
+  const h = Math.floor((totalMins % 1440) / 60);
+  const m = Math.floor(totalMins % 60);
+  const parts: string[] = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0 || parts.length === 0) parts.push(`${m}m`);
+  return parts.join(" ");
+};
 
 export const Dashboard = () => {
   const { fromDate, toDate, setFromDate, setToDate } = useDashboardStore();
@@ -126,7 +146,7 @@ const { data } = useDashboardQuery(
             <Clock className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-serif">{totalDowntime} <span className="text-sm font-normal text-muted-foreground">mins</span></div>
+            <div className="text-2xl font-bold font-serif">{formatMinutes(totalDowntime)}</div>
           </CardContent>
         </Card>
 
@@ -160,7 +180,7 @@ const { data } = useDashboardQuery(
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-serif text-blue-500">
-              {atmDowntime} <span className="text-sm font-normal text-muted-foreground">mins</span>
+              {formatMinutes(atmDowntime)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">ATM channel incidents</p>
           </CardContent>
@@ -173,7 +193,7 @@ const { data } = useDashboardQuery(
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-serif text-orange-500">
-              {otherDowntime} <span className="text-sm font-normal text-muted-foreground">mins</span>
+              {formatMinutes(otherDowntime)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Mobile, POS, Internet & more</p>
           </CardContent>
@@ -198,7 +218,7 @@ const { data } = useDashboardQuery(
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Downtime per Channel (mins)</CardTitle>
+            <CardTitle>Downtime per Channel</CardTitle>
             <CardDescription>Aggregate duration metric.</CardDescription>
           </CardHeader>
           <CardContent className="h-80">

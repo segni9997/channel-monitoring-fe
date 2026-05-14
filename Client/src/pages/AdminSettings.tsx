@@ -225,9 +225,9 @@ export const AdminSettings = () => {
               <CardDescription>All system configuration values from the API.</CardDescription>
             </CardHeader>
             <CardContent>
-              {settings && Object.keys(settings).length > 0 ? (
+              {shiftInfo && Object.keys(shiftInfo).length > 0 ? (
                 <div className="divide-y divide-border rounded-md border overflow-hidden">
-                  {Object.entries(settings).filter(([key]) => key !== "shift_start_time").map(([key, value]) => (
+                  {Object.entries(shiftInfo).map(([key, value]) => (
                     <div
                       key={key}
                       className="flex items-center justify-between px-4 py-3 text-sm hover:bg-muted/40 transition-colors"

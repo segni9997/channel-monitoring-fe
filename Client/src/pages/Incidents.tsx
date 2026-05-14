@@ -224,8 +224,8 @@ export const Incidents = () => {
             </div>
 
             <div className={cn(
-              "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 overflow-hidden transition-all duration-300",
-              isFiltersVisible ? "max-h-[1000px] opacity-100 mt-4" : "max-h-0 md:max-h-none opacity-0 md:opacity-100 pointer-events-none md:pointer-events-auto"
+              "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4",
+              !isFiltersVisible && "hidden lg:grid"
             )}>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">From Date</label>

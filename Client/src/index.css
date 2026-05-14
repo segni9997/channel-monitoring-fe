@@ -35,42 +35,42 @@
 
 @layer base {
   :root {
-    /* Base */
-    --background: 0 0% 100%;
-    --foreground: 215 50% 12%;
+    /* Base — cream background, pure black text */
+    --background: 42 100% 97%;       /* near-white cream tinted from #ffe9b0 */
+    --foreground: 0 0% 0%;           /* #000000 */
 
     /* Card */
     --card: 0 0% 100%;
-    --card-foreground: 215 50% 12%;
+    --card-foreground: 0 0% 0%;      /* #000000 */
 
     /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 215 50% 12%;
+    --popover-foreground: 0 0% 0%;   /* #000000 */
 
-    /* PRIMARY → Deep Bank Navy */
-    --primary: 210 65% 18%;
-    --primary-foreground: 45 100% 96%;
+    /* PRIMARY → Brand Navy #003da5 */
+    --primary: 220 100% 32%;         /* #003da5 */
+    --primary-foreground: 42 100% 84%; /* #ffe9b0 */
 
-    /* SECONDARY → Soft Gold */
-    --secondary: 42 45% 85%;
-    --secondary-foreground: 210 65% 18%;
+    /* SECONDARY → Cream #ffe9b0 */
+    --secondary: 42 100% 84%;        /* #ffe9b0 */
+    --secondary-foreground: 0 0% 0%; /* #000000 */
 
-    /* MUTED */
-    --muted: 210 30% 96%;
-    --muted-foreground: 215 16% 45%;
+    /* MUTED — soft cream tint */
+    --muted: 42 60% 92%;
+    --muted-foreground: 0 0% 30%;
 
-    /* ACCENT → Gold highlight */
-    --accent: 42 60% 60%;
-    --accent-foreground: 210 65% 18%;
+    /* ACCENT → Brand Gold #eaaa00 */
+    --accent: 42 100% 46%;           /* #eaaa00 */
+    --accent-foreground: 0 0% 0%;    /* #000000 */
 
     /* DESTRUCTIVE */
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 98%;
 
     /* BORDER / INPUT */
-    --border: 210 25% 88%;
-    --input: 210 25% 88%;
-    --ring: 42 60% 55%;
+    --border: 42 40% 80%;
+    --input: 42 40% 80%;
+    --ring: 42 100% 46%;             /* #eaaa00 */
 
     /* Radius */
     --radius: 0.5rem;

@@ -23,17 +23,28 @@ const tryFormatDate = (val?: string) => {
   }
 };
 
+// Safely convert any value to a renderable string
+const safeStr = (val: any): string => {
+  if (val === null || val === undefined) return "—";
+  if (typeof val === "string") return val || "—";
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (typeof val === "object") {
+    // Handle {message: "..."} or any object
+    return val.message ?? val.details ?? val.text ?? JSON.stringify(val);
+  }
+  return String(val);
+};
+
 export const AuditLogs = () => {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
 
-  const { data, isLoading, isError, refetch, isFetching } = useGetAuditLogsQuery({
-    page,
-    pageSize: PAGE_SIZE,
-  });
-console.log(data)
+  const { data, isLoading, isError, refetch, isFetching } = useGetAuditLogsQuery({ page });
+
   const logs = data?.data ?? [];
-  const total = data?.total ?? logs.length;
+  const total = data?.total ?? 0;
+  const lastPage = data?.last_page ?? 1;
+  const perPage = data?.per_page ?? PAGE_SIZE;
 
   const filtered = search.trim()
     ? logs.filter((log) => {
@@ -46,6 +57,11 @@ console.log(data)
         );
       })
     : logs;
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setSearch("");
+  };
 
   return (
     <div className="space-y-6">
@@ -96,7 +112,7 @@ console.log(data)
           </CardTitle>
           <CardDescription>
             {total > 0
-              ? `Showing ${filtered.length} of ${total} total log entries.`
+              ? `Showing ${filtered.length} of ${total} total log entries (page ${page} of ${lastPage}).`
               : "All recorded system events."}
           </CardDescription>
         </CardHeader>
@@ -134,21 +150,21 @@ console.log(data)
                     {filtered.map((log, idx) => (
                       <TableRow key={log.id ?? idx} className="hover:bg-muted/40">
                         <TableCell className="text-muted-foreground font-mono text-xs">
-                          {(page - 1) * PAGE_SIZE + idx + 1}
+                          {(page - 1) * perPage + idx + 1}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="font-mono text-xs border-accent/40 text-accent">
-                            {log.action ?? "—"}
+                            {safeStr(log.action)}
                           </Badge>
                         </TableCell>
                         <TableCell className="max-w-xs truncate text-sm">
-                          {log.details ?? "—"}
+                          {safeStr(log.details)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {log.user_name ?? log.user_id ?? "—"}
+                          {safeStr(log.user_name ?? log.user_id)}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {log.ip_address ?? "—"}
+                          {safeStr(log.ip_address)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {tryFormatDate(log.created_at)}
@@ -160,9 +176,9 @@ console.log(data)
               </div>
               <Pagination
                 currentPage={page}
-                totalCount={total}
-                pageSize={PAGE_SIZE}
-                onPageChange={setPage}
+                totalCount={lastPage * perPage}
+                pageSize={perPage}
+                onPageChange={handlePageChange}
                 onPageSizeChange={() => {}}
               />
             </>
