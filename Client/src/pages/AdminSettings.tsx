@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Settings, Save, Clock } from "lucide-react";
-import { useGetSettingsQuery, useUpdateSettingsMutation } from "@/api/settingsApi";
+import { Settings, Save, Clock, PlayCircle } from "lucide-react";
+import { useGetSettingsQuery, useGetShiftInfoQuery, useUpdateSettingsMutation, useSetShiftStartTimeMutation } from "@/api/settingsApi";
+import { Input } from "@/components/ui/input";
 import { Loader } from "@/components/shared/Loader";
 import { cn } from "@/lib/utils";
 
@@ -10,11 +11,16 @@ const SHIFT_OPTIONS = [8, 16, 24];
 
 export const AdminSettings = () => {
   const { data: settings, isLoading, isError, refetch } = useGetSettingsQuery();
+  const { data: shiftInfo, refetch: refetchShift } = useGetShiftInfoQuery();
   const [updateSettings, { isLoading: isSaving }] = useUpdateSettingsMutation();
+  const [updateShiftTime, { isLoading: isStarting }] = useSetShiftStartTimeMutation();
 
   const [selected, setSelected] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [shiftStartTime, setShiftStartTime] = useState("");
+  const [shiftSuccess, setShiftSuccess] = useState(false);
+  const [shiftError, setShiftError] = useState("");
 
   const currentValue = settings?.shift_time ?? null;
   // pending selection takes priority, otherwise show server value
@@ -31,6 +37,27 @@ export const AdminSettings = () => {
       refetch();
     } catch (e: any) {
       setErrorMsg(e?.data?.message ?? "Failed to save settings.");
+    }
+  };
+
+  const handleStartShift = async () => {
+    setShiftError("");
+    setShiftSuccess(false);
+    if (!shiftStartTime) {
+      setShiftError("Please enter a shift start time.");
+      return;
+    }
+    try {
+      // shiftStartTime is from <input type="time"> which gives "HH:mm", pad to "HH:mm:ss"
+      const formatted = shiftStartTime.length === 5 ? `${shiftStartTime}:00` : shiftStartTime;
+      await updateShiftTime({ shift_start_time: formatted }).unwrap();
+      setShiftSuccess(true);
+      setShiftStartTime("");
+      setTimeout(() => setShiftSuccess(false), 3000);
+      refetch();
+      refetchShift();
+    } catch (e: any) {
+      setShiftError(e?.data?.message ?? "Failed to set shift start time.");
     }
   };
 
@@ -141,6 +168,53 @@ export const AdminSettings = () => {
             </CardContent>
           </Card>
 
+          <Card className="shadow-sm border-t-4 border-primary">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PlayCircle className="h-5 w-5 text-primary" />
+                Shift Management
+              </CardTitle>
+              <CardDescription>
+                Set the daily shift start time. This will update the base time for reporting.
+                {shiftInfo?.shift_start_time && (
+                  <> Current shift start time: <strong>{shiftInfo.shift_start_time}</strong></>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Shift Start Time</label>
+                <Input 
+                  type="time" 
+                  value={shiftStartTime}
+                  onChange={(e) => setShiftStartTime(e.target.value)}
+                  placeholder="e.g. 08:00"
+                />
+                <p className="text-[10px] text-muted-foreground">Enter the time in HH:mm format (e.g. 08:00:00).</p>
+              </div>
+
+              {shiftError && (
+                <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{shiftError}</p>
+              )}
+              {shiftSuccess && (
+                <p className="text-sm text-green-700 bg-green-100 px-3 py-2 rounded-md font-medium">
+                  ✓ Shift started successfully.
+                </p>
+              )}
+
+              <Button
+                id="start_shift_btn"
+                onClick={handleStartShift}
+                disabled={isStarting}
+                className="gap-2 w-full sm:w-auto"
+                variant="outline"
+              >
+                {isStarting ? <Loader /> : <PlayCircle className="h-4 w-4" />}
+                {isStarting ? "Saving..." : "Set Shift Start Time"}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Raw settings display */}
           <Card className="shadow-sm">
             <CardHeader>
@@ -153,7 +227,7 @@ export const AdminSettings = () => {
             <CardContent>
               {settings && Object.keys(settings).length > 0 ? (
                 <div className="divide-y divide-border rounded-md border overflow-hidden">
-                  {Object.entries(settings).map(([key, value]) => (
+                  {Object.entries(settings).filter(([key]) => key !== "shift_start_time").map(([key, value]) => (
                     <div
                       key={key}
                       className="flex items-center justify-between px-4 py-3 text-sm hover:bg-muted/40 transition-colors"

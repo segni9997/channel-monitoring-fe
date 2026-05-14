@@ -80,7 +80,7 @@ export const usersApi = baseApi.injectEndpoints({
       }
     >({
       query: (body) => ({
-        url: "/super-admin/admins",
+        url: "/admin/create",
         method: "POST",
         body,
       }),

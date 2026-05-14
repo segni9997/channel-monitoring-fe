@@ -17,7 +17,7 @@ import { Plus, Edit2, Trash2, X, Check } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Pagination } from "@/components/ui/pagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCreateUserMutation, useGetUsersQuery, useUpdateUserMutation } from "@/api/userApi";
+import { useCreateAdminMutation, useCreateUserMutation, useGetUsersQuery, useUpdateUserMutation } from "@/api/userApi";
 import { Loader } from "@/components/shared/Loader";
 
 export const AdminUserMgmt = () => {
@@ -27,6 +27,7 @@ export const AdminUserMgmt = () => {
   const [isAdding, setIsAdding] = useState(false);
   const {data:users,isLoading,isError,refetch}= useGetUsersQuery()
   const [addUser, { isLoading: isAddingUser }] = useCreateUserMutation();
+  const [createAdmin, { isLoading: isCreatingAdmin }] = useCreateAdminMutation();
   const [updateUser] = useUpdateUserMutation();
   // const [deleteUser, { isLoading: isDeletingUser }] = useDeleteUserMutuation();
   console.log("users", users)
@@ -91,13 +92,29 @@ export const AdminUserMgmt = () => {
     }
 
     if (isAdding) {
-      addUser(formData as Omit<User, "id" | "created_at" | "updated_at"> & { password: string });
-      refetch();
+      console.log("formdata",formData)
+      if (formData.role === Role.admin) {
+        // Omit role for admin creation as requested
+        const { role, ...adminData } = formData;
+        createAdmin(adminData as any).unwrap().then(() => {
+          refetch();
+          cancelEdit();
+        }).catch((err) => {
+          console.error("Failed to create admin:", err);
+          alert(err?.data?.message || "Failed to create admin");
+        });
+      } else {
+        addUser(formData as Omit<User, "id" | "created_at" | "updated_at"> & { password: string }).unwrap().then(() => {
+          refetch();
+          cancelEdit();
+        });
+      }
     } else if (editingId) {
-      updateUser({id:Number(editingId),data:formData as Omit<User, "password" > });
-      refetch();
+      updateUser({id:Number(editingId),data:formData as Omit<User, "password" > }).unwrap().then(() => {
+        refetch();
+        cancelEdit();
+      });
     }
-    cancelEdit();
   };
 
   // Auto-fill email when firstName and lastName are entered
@@ -213,7 +230,7 @@ export const AdminUserMgmt = () => {
                       />
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                        {isAddingUser  ? <Loader/> : <>   <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
+                        {isAddingUser || isCreatingAdmin ? <Loader/> : <>   <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button></>}
                     </TableCell>
                   </TableRow>

@@ -40,9 +40,9 @@ console.log(data)
         const q = search.toLowerCase();
         return (
           log.action?.toLowerCase().includes(q) ||
-          log.description?.toLowerCase().includes(q) ||
-          log.user?.toLowerCase().includes(q) ||
-          String(log.userId ?? "").includes(q)
+          log.details?.toLowerCase().includes(q) ||
+          log.user_name?.toLowerCase().includes(q) ||
+          String(log.user_id ?? "").includes(q)
         );
       })
     : logs;
@@ -142,16 +142,16 @@ console.log(data)
                           </Badge>
                         </TableCell>
                         <TableCell className="max-w-xs truncate text-sm">
-                          {log.description ?? "—"}
+                          {log.details ?? "—"}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {log.user ?? log.userId ?? "—"}
+                          {log.user_name ?? log.user_id ?? "—"}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {log.ipAddress ?? log.ip ?? "—"}
+                          {log.ip_address ?? "—"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {tryFormatDate(log.createdAt ?? log.created_at)}
+                          {tryFormatDate(log.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
