@@ -5,20 +5,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
+import { useSuperAdminLoginMutation } from "@/api/authApi";
 
 export const SuperLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const navigate = useNavigate();
+  const [superAdminLogin, { isLoading }] = useSuperAdminLoginMutation();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (user?.email === email && user?.password === password) {
+    setError("");
+    try {
+      const res = await superAdminLogin({ email, password }).unwrap();
+      
+      // ✅ Save to Zustand
+      setUser(res.user);
+
+      // ✅ Store token
+      if (res.token) {
+        localStorage.setItem("token", res.token);
+      }
+
       navigate("/");
-    } else {
-      setError("Invalid administrative credentials.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.data?.message || "Invalid administrative credentials.");
     }
   };
 
@@ -80,8 +94,8 @@ export const SuperLogin = () => {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full shadow-lg shadow-primary/20">
-              Authorize Root Access
+            <Button type="submit" className="w-full shadow-lg shadow-primary/20" disabled={isLoading}>
+              {isLoading ? "Authorizing..." : "Authorize Root Access"}
             </Button>
           </CardFooter>
         </form>

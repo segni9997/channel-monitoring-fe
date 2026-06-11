@@ -12,10 +12,17 @@ class Reason extends Model
 
     protected $fillable = [
         'name',
+        'channel_id',
+        'responsible_dept',
     ];
 
     public function incidents()
     {
         return $this->hasMany(Incident::class, 'reasonId');
+    }
+
+    public function channel()
+    {
+        return $this->belongsTo(Channel::class, 'channel_id');
     }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { useGetReasonsQuery } from "@/api/reasonApi";
 import { useGetBranchesQuery } from "@/api/branchApi";
@@ -9,14 +9,16 @@ import {
   useCreateAtmIncidentMutation, 
   useUpdateIncidentMutation 
 } from "@/api/incedentApi";
+import { useGetShiftInfoQuery } from "@/api/settingsApi";
 import { useAuthStore } from "@/store/authStore";
-import { Channel } from "@/types";
+import { Channel, Status } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface AddIncidentModalProps {
   onClose: () => void;
@@ -28,9 +30,10 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
   const branches = Array.isArray(branchesData) ? branchesData : branchesData?.branches || [];
   const { data: channelsData } = useGetChannelsQuery();
   const channels = Array.isArray(channelsData) ? channelsData : channelsData?.channels || [];
+  const { data: shiftInfo } = useGetShiftInfoQuery();
 
-  const [createIncident] = useCreateIncidentMutation();
-  const [createAtmIncident] = useCreateAtmIncidentMutation();
+  const [createIncident, { isLoading: isCreatingNormal }] = useCreateIncidentMutation();
+  const [createAtmIncident, { isLoading: isCreatingAtm }] = useCreateAtmIncidentMutation();
 
   const [downtimeStart, setDowntimeStart] = useState<string>(new Date().toISOString());
   const [downtimeEnd, setDowntimeEnd] = useState<string>("");
@@ -41,6 +44,12 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
   // ATM specific states
   const [branchId, setBranchId] = useState("");
   const [atmIds, setAtmIds] = useState<string[]>([]);
+
+  // Notifications
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const isSaving = isCreatingNormal || isCreatingAtm;
 
   // Derive the numeric channel ID from the selected channel name to filter reasons
   const selectedChannelId = channels.find((c: any) => c.name === channel)?.id;
@@ -57,9 +66,35 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
   // Detect if ATM channel is selected (by name, since channels are dynamic)
   const isAtmChannel = channel.toUpperCase() === "ATM";
 
+  const isShiftActive = useMemo(() => {
+    const duration = Number(shiftInfo?.shift_duration || 24);
+    const startTimeStr = shiftInfo?.shift_start_time;
+    if (duration >= 24 || !startTimeStr) return true;
+
+    const now = new Date();
+    const [sh, sm, ss] = startTimeStr.split(":").map(Number);
+    
+    // Today's shift window
+    const todayStart = new Date(now);
+    todayStart.setHours(sh, sm || 0, ss || 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(todayEnd.getHours() + duration);
+    
+    // Yesterday's shift window
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(yesterdayStart);
+    yesterdayEnd.setHours(yesterdayEnd.getHours() + duration);
+    
+    return (now >= todayStart && now <= todayEnd) || (now >= yesterdayStart && now <= yesterdayEnd);
+  }, [shiftInfo]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!downtimeStart || !reasonId || !user) return;
+
+    setErrorMsg("");
+    setSuccessMsg("");
 
     // Format date to API expected format: "yyyy-MM-dd HH:mm:ss"
     const formatDate = (iso: string) => format(new Date(iso), "yyyy-MM-dd HH:mm:ss");
@@ -88,9 +123,13 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
           status: "inprogress",
         } as any).unwrap();
       }
-      onClose();
-    } catch (error) {
+      setSuccessMsg("Incident created successfully!");
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (error: any) {
       console.error("Failed to create incident", error);
+      setErrorMsg(error?.data?.message || "Failed to create incident. Please check details and try again.");
     }
   };
 
@@ -103,6 +142,29 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
             <CardDescription>Log a new downtime event. Leaving end time empty creates a PENDING incident.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!isShiftActive && (
+              <div className="flex items-start gap-2.5 text-sm text-amber-800 bg-amber-50 p-3 rounded-md border border-amber-200">
+                <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+                <div>
+                  <span className="font-semibold">Shift Inactive:</span> Incidents can only be created during the active shift window. Current shift starts at <span className="font-mono">{shiftInfo?.shift_start_time || '00:00:00'}</span> and lasts for {shiftInfo?.shift_duration || 24} hours.
+                </div>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2.5 rounded-md border border-destructive/20 animate-in fade-in duration-200">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2.5 rounded-md border border-green-200 animate-in fade-in duration-200">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Start Date & Time *</label>
@@ -175,9 +237,9 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-2 border-t p-4 mt-2">
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={!reasonId || (isAtmChannel && (!branchId || atmIds.length === 0))}>
-              Save Incident
+            <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>Cancel</Button>
+            <Button type="submit" disabled={isSaving || !reasonId || (isAtmChannel && (!branchId || atmIds.length === 0))}>
+              {isSaving ? "Saving..." : "Save Incident"}
             </Button>
           </CardFooter>
         </form>
@@ -188,12 +250,17 @@ export const AddIncidentModal = ({ onClose }: AddIncidentModalProps) => {
 
 export const ResolveIncidentModal = ({ incidentId, onClose }: { incidentId: string, onClose: () => void }) => {
   const [downtimeEnd, setDowntimeEnd] = useState<string>(new Date().toISOString());
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  const [updateIncident] = useUpdateIncidentMutation();
+  const [updateIncident, { isLoading: isUpdating }] = useUpdateIncidentMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!downtimeEnd) return;
+
+    setErrorMsg("");
+    setSuccessMsg("");
 
     const formatDate = (iso: string) => format(new Date(iso), "yyyy-MM-dd HH:mm:ss");
 
@@ -202,12 +269,16 @@ export const ResolveIncidentModal = ({ incidentId, onClose }: { incidentId: stri
         id: incidentId,
         body: {
           downTimeEnd: formatDate(downtimeEnd),
-          status: "Completed",
+          status: Status.COMPLETED,
         }
       }).unwrap();
-      onClose();
-    } catch (error) {
+      setSuccessMsg("Incident resolved successfully!");
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (error: any) {
       console.error("Failed to resolve incident", error);
+      setErrorMsg(error?.data?.message || "Failed to resolve incident. Please try again.");
     }
   };
 
@@ -220,14 +291,30 @@ export const ResolveIncidentModal = ({ incidentId, onClose }: { incidentId: stri
             <CardDescription>Specify the end time to calculate duration and mark as completed.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {errorMsg && (
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2.5 rounded-md border border-destructive/20 animate-in fade-in duration-200">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2.5 rounded-md border border-green-200 animate-in fade-in duration-200">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium">End Date & Time</label>
               <DateTimePicker date={downtimeEnd} onChange={setDowntimeEnd} />
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-2 border-t p-4">
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="default" className="bg-green-600 hover:bg-green-700">Complete Incident</Button>
+            <Button type="button" variant="ghost" onClick={onClose} disabled={isUpdating}>Cancel</Button>
+            <Button type="submit" variant="default" className="bg-green-600 hover:bg-green-700" disabled={isUpdating}>
+              {isUpdating ? "Saving..." : "Complete Incident"}
+            </Button>
           </CardFooter>
         </form>
       </Card>

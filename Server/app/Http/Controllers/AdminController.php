@@ -4,62 +4,175 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Incident;
+use App\Models\SystemSetting;
 use Carbon\Carbon;
+use App\Services\IncidentService;
+use App\Services\UserService;
+use App\Services\SettingsService;
 
 class AdminController extends Controller
 {
+    protected $incidentService;
+    protected $userService;
+    protected $settingsService;
+
+    public function __construct(
+        IncidentService $incidentService, 
+        UserService $userService, 
+        SettingsService $settingsService
+    ) {
+        $this->incidentService = $incidentService;
+        $this->userService = $userService;
+        $this->settingsService = $settingsService;
+    }
+
     public function dashboardSummary(Request $request)
     {
-        $timeFilter = $request->query('filter'); // '24hrs', 'day', 'week', 'month', 'year'
-
-        $query = Incident::query();
-
-        if ($timeFilter) {
-            $now = Carbon::now();
-            switch ($timeFilter) {
-                case '24hrs':
-                case 'day': // Depending on what you mean by 'last day', this might be the same as 24hrs
-                    $query->where('created_at', '>=', $now->copy()->subDay());
-                    break;
-                case 'week':
-                    $query->where('created_at', '>=', $now->copy()->subWeek());
-                    break;
-                case 'month':
-                    $query->where('created_at', '>=', $now->copy()->subMonth());
-                    break;
-                case 'year':
-                    $query->where('created_at', '>=', $now->copy()->subYear());
-                    break;
-                default:
-                    $query->where('created_at', '>=', $now->copy()->subDay());
-                    break;
-            }
+        // SAFETY CHECK: Only admin or superAdmin can see the dashboard summary
+        if (!in_array($request->user()->role, ['admin', 'superAdmin'])) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $incidents = $query->get();
+        $summary = $this->incidentService->getDashboardSummary(
+            $request->query('from'), 
+            $request->query('to')
+        );
 
-        $totalIncidents = $incidents->count();
-        $pendingIncidents = $incidents->where('status', 'inprogress')->count();
-        $completedIncidents = $incidents->where('status', 'completed')->count();
+        return response()->json($summary, 200);
+    }
 
-        // Calculate total downtime
-        // Assuming duration is stored as a numeric string (e.g., minutes).
-        // intval() will pull the number out even if there is text attached like "120 mins"
-        $totalDownTime = $incidents->sum(function ($incident) {
-            return (int) $incident->duration; 
-        });
+    /**
+     * Get only shift-related settings (accessible to all users).
+     */
+    public function getShiftSettings(Request $request)
+    {
+        $settings = $this->settingsService->getAllSettings();
+        
+        return response()->json([
+            'shift_start_time' => $settings['global_shift_start_time'] ?? '00:00:00',
+            'shift_duration' => $settings['shift_time'] ?? '24'
+        ], 200);
+    }
+
+    /**
+     * Get system settings.
+     */
+    public function getSettings(Request $request)
+    {
+        if (!in_array($request->user()->role, ['admin', 'superAdmin'])) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        return response()->json($this->settingsService->getAllSettings(), 200);
+    }
+
+    /**
+     * Update system settings.
+     */
+    public function updateSettings(Request $request)
+    {
+        if ($request->user()->role !== 'superAdmin') {
+            return response()->json(['message' => 'Unauthorized. Only super admins can modify system settings.'], 403);
+        }
+
+        $validated = $request->validate([
+            'shift_time' => 'sometimes|in:8,16,24',
+        ]);
+
+        $this->settingsService->updateSettings($validated);
+
+        return response()->json(['message' => 'Settings updated successfully'], 200);
+    }
+
+    /**
+     * Update the global shift start time (time only).
+     */
+    public function updateShiftStartTime(Request $request)
+    {
+        if ($request->user()->role !== 'superAdmin') {
+            return response()->json(['message' => 'Unauthorized. Only super admins can modify shift start time.'], 403);
+        }
+
+        $validated = $request->validate([
+            'shift_start_time' => [
+                'required',
+                'string',
+                'regex:/^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/'
+            ],
+        ]);
+
+        $this->settingsService->updateSettings([
+            'global_shift_start_time' => $validated['shift_start_time']
+        ]);
 
         return response()->json([
-            'total_incidents' => $totalIncidents,
-            'pending_incidents' => $pendingIncidents,
-            'completed_incidents' => $completedIncidents,
-            'total_down_time' => $totalDownTime,
-            'filter_applied' => $timeFilter ?? 'all_time'
+            'message' => 'Global shift start time updated successfully',
+            'shift_start_time' => $validated['shift_start_time']
         ], 200);
+    }
+
+    /**
+     * Update the global shift duration (hours).
+     */
+    public function updateShiftDuration(Request $request)
+    {
+        if ($request->user()->role !== 'superAdmin') {
+            return response()->json(['message' => 'Unauthorized. Only super admins can modify shift duration.'], 403);
+        }
+
+        $validated = $request->validate([
+            'shift_duration' => 'required|in:8,16,24',
+        ]);
+
+        $this->settingsService->updateSettings([
+            'shift_time' => $validated['shift_duration']
+        ]);
+
+        return response()->json([
+            'message' => 'Global shift duration updated successfully',
+            'shift_duration' => $validated['shift_duration']
+        ], 200);
+    }
+
+    /**
+     * Admin route to edit an incident.
+     */
+    public function updateIncident(Request $request, $id)
+    {
+        if (!in_array($request->user()->role, ['admin', 'superAdmin'])) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $validated = $request->validate([
+            'downTimeStart' => 'sometimes|date',
+            'downTimeEnd' => 'sometimes|date|after_or_equal:downTimeStart',
+            'remark' => 'nullable|string',
+            'status' => 'sometimes|in:completed,inprogress',
+            'channel' => 'sometimes|in:USSD,APP,ATM,IPS,TOPUP,IBANK,LOROIB',
+            'reasonId' => 'sometimes|exists:reasons,id',
+            'branch_id' => 'nullable|exists:branches,id',
+            'atm_id' => 'nullable|exists:atms,id',
+        ]);
+
+        try {
+            $incident = $this->incidentService->updateIncident($id, $validated, true);
+
+            return response()->json([
+                'message' => 'Incident updated successfully',
+                'incident' => $incident->load(['reason', 'branch', 'atm'])
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getCode() ?: 400);
+        }
     }
 
     public function createUser(Request $request)
     {
+        // SAFETY CHECK: Only admin or superAdmin can create users
+        if (!in_array($request->user()->role, ['admin', 'superAdmin'])) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
         $validated = $request->validate([
             'firstName' => 'required|string|max:255',
             'lastName' => 'required|string|max:255',
@@ -69,14 +182,7 @@ class AdminController extends Controller
             'password' => 'required|string|min:8',
         ]);
 
-        $user = \App\Models\User::create([
-            'firstName' => $validated['firstName'],
-            'lastName' => $validated['lastName'],
-            'phoneNumber' => $validated['phoneNumber'],
-            'email' => $validated['email'],
-            'role' => $validated['role'],
-            'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
-        ]);
+        $user = $this->userService->createUser($validated);
 
         return response()->json([
             'message' => 'User created successfully',
@@ -86,6 +192,11 @@ class AdminController extends Controller
 
     public function createAdmin(Request $request)
     {
+        // SAFETY CHECK: Only superAdmin can create other admins
+        if ($request->user()->role !== 'superAdmin') {
+            return response()->json(['message' => 'Unauthorized. Only super admins can perform this action.'], 403);
+        }
+
         $validated = $request->validate([
             'firstName' => 'required|string|max:255',
             'lastName' => 'required|string|max:255',
@@ -94,14 +205,7 @@ class AdminController extends Controller
             'password' => 'required|string|min:8',
         ]);
 
-        $user = \App\Models\User::create([
-            'firstName' => $validated['firstName'],
-            'lastName' => $validated['lastName'],
-            'phoneNumber' => $validated['phoneNumber'],
-            'email' => $validated['email'],
-            'role' => 'admin',
-            'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
-        ]);
+        $user = $this->userService->createAdmin($validated);
 
         return response()->json([
             'message' => 'Admin account created successfully',
@@ -112,9 +216,14 @@ class AdminController extends Controller
     /**
      * List all users.
      */
-    public function listUsers()
+    public function listUsers(Request $request)
     {
-        return response()->json(\App\Models\User::all(), 200);
+        // SAFETY CHECK: Only admin or superAdmin can list users
+        if (!in_array($request->user()->role, ['admin', 'superAdmin'])) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        return response()->json($this->userService->getAllUsers(), 200);
     }
 
     /**
@@ -122,41 +231,21 @@ class AdminController extends Controller
      */
     public function updateUser(Request $request, $id)
     {
-        // return response()->json(['received_data' => $request->all(), 'content_type' => $request->header('Content-Type')]);
-
-        $user = \App\Models\User::find($id);
-
-        if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
+        // SAFETY CHECK: Only admin or superAdmin can update users
+        if (!in_array($request->user()->role, ['admin', 'superAdmin'])) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
         }
-
-        // return response()->json([
-        //     'message' => 'Validation passed',
-        //     'requesttt' => $request->all(),
-        // ]);
-
-        // // Map snake_case to camelCase automatically if provided
-        // $data = $request->all();
-        // if (isset($data['first_name'])) $data['firstName'] = $data['first_name'];
-        // if (isset($data['last_name'])) $data['lastName'] = $data['last_name'];
-        // if (isset($data['phone_number'])) $data['phoneNumber'] = $data['phone_number'];
 
         $validated = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'firstName' => 'sometimes|string|max:255',
             'lastName' => 'sometimes|string|max:255',
             'phoneNumber' => 'sometimes|string|max:20',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $id,
             'role' => 'sometimes|in:admin,officer,pms',
             'password' => 'sometimes|string|min:8',
         ])->validate();
 
-        if (isset($validated['password'])) {
-            $validated['password'] = \Illuminate\Support\Facades\Hash::make($validated['password']);
-        }
-        
-
-        $user->update($validated);
-        $user->refresh();
+        $user = $this->userService->updateUser($id, $validated);
 
         return response()->json([
             'message' => 'User updated successfully',

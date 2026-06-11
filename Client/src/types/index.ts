@@ -1,8 +1,8 @@
 export const Role = {
   super_admin: "superAdmin",
   admin: "admin",
-  pms_offcier: "offcier",
-  epayment_officer: "pms",
+  pms_offcier: "pms",
+  epayment_officer: "officer",
 } as const;
 
 export type Role = (typeof Role)[keyof typeof Role];
@@ -23,8 +23,8 @@ export interface AppChannel {
 }
 
 export const Status = {
-  PENDING: "InProgress",
-  COMPLETED: "Completed",
+  PENDING: "inProgress",
+  COMPLETED: "completed",
 } as const;
 
 export type Status = (typeof Status)[keyof typeof Status];
@@ -36,6 +36,7 @@ export interface User {
   phoneNumber: string;
   email: string;
   role: Role;
+  is_active?: boolean;
   password?: string; // Optional for mock authentication
   created_at: string;
   updated_at: string;

@@ -2,13 +2,18 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { LayoutDashboard, AlertCircle, Users, LogOut, List, Palette, ChevronDown, ChevronRight, GitBranchPlusIcon } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Users, LogOut, List, Palette, ChevronDown, ChevronRight, GitBranchPlusIcon, KeyRound, X, Settings, ScrollText, ShieldCheck } from "lucide-react";
 import { Role } from "@/types";
 
 import { useThemeStore, type Theme } from "@/store/themeStore";
 import { Sun, Moon, TreeDeciduous, Coffee as CoffeeIcon } from "lucide-react";
 
-export const Sidebar = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { user, logout } = useAuthStore();
   const { theme, setTheme } = useThemeStore();
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
@@ -20,6 +25,10 @@ export const Sidebar = () => {
     { name: "Users", path: "/users", icon: Users, roles: [Role.super_admin, Role.admin] },
     { name: "Reasons", path: "/reasons", icon: List, roles: [Role.super_admin, Role.admin] },
     { name: "Branch and ATM", path: "/network", icon: GitBranchPlusIcon, roles: [Role.super_admin, Role.admin] },
+    { name: "Settings", path: "/settings", icon: Settings, roles: [Role.super_admin, Role.admin] },
+    { name: "Audit Logs", path: "/audit-logs", icon: ScrollText, roles: [Role.super_admin] },
+    { name: "Admin Accounts", path: "/admin-accounts", icon: ShieldCheck, roles: [Role.super_admin] },
+    { name: "Change Password", path: "/settings/change-password", icon: KeyRound, roles: [Role.super_admin, Role.admin, Role.pms_offcier, Role.epayment_officer] },
   ];
 
   const allowedLinks = links.filter((l) => user && l.roles.includes(user.role));
@@ -34,12 +43,21 @@ export const Sidebar = () => {
   const CurrentThemeIcon = themes.find(t => t.name === theme)?.icon || Palette;
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-card shadow-sm transition-colors duration-300">
-      <div className="flex h-16 items-center px-6 mt-3 mb-3">
+    <div className={cn(
+      "fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r bg-card shadow-xl transition-transform duration-300 lg:relative lg:translate-x-0 lg:shadow-sm",
+      isOpen ? "translate-x-0" : "-translate-x-full"
+    )}>
+      <div className="flex h-16 items-center justify-between px-6 mt-3 mb-3">
         <span className="text-xl font-extrabold tracking-tight text-accent flex items-center gap-2 flex-col"> 
           <img src="/bg.png" alt="" className="w-full h-10 object-contain" /> 
           <span className="whitespace-nowrap">Channel Monitor</span>
         </span>
+        <button 
+          onClick={onClose}
+          className="lg:hidden p-2 rounded-md hover:bg-muted text-muted-foreground"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="flex flex-col gap-1 px-4">
@@ -50,6 +68,7 @@ export const Sidebar = () => {
               <Link
                 key={link.path}
                 to={link.path}
+                onClick={() => onClose?.()}
                 className={cn(
                   "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all group",
                   isActive

@@ -20,6 +20,8 @@ class Incident extends Model
         'status',
         'channel',
         'reasonId',
+        'branch_id',
+        'atm_id',
     ];
 
     /*
@@ -38,6 +40,18 @@ class Incident extends Model
     public function reason()
     {
         return $this->belongsTo(Reason::class, 'reasonId');
+    }
+
+    // Branch relationship
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
+
+    // ATM relationship
+    public function atm()
+    {
+        return $this->belongsTo(Atm::class, 'atm_id');
     }
 
     // Users involved in this incident (many-to-many if you kept pivot)
