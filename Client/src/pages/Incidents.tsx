@@ -157,6 +157,7 @@ export const Incidents = () => {
     return parts.join(" ");
   };
 
+  
   const pagedIncidents = useMemo(() => {
     const start = (page - 1) * pageSize;
     return apiIncidents.slice(start, start + pageSize);
