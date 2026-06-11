@@ -37,8 +37,12 @@ class DepartmentService
     public function update($id, array $data)
     {
         $department = Department::findOrFail($id);
+        $oldValues = $department->only(array_keys($data));
+        
         $department->update($data);
-        $this->auditLog->log('Update Department', "Updated department: {$department->name} (ID: {$id})");
+        $newValues = $department->refresh()->only(array_keys($data));
+
+        $this->auditLog->log('Update Department', "Updated department: {$department->name} (ID: {$id})", null, $oldValues, $newValues);
         return $department;
     }
 

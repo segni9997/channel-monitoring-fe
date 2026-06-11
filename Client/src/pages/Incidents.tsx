@@ -5,6 +5,7 @@ import { useGetDepartmentsQuery } from "@/api/departmentApi";
 import { useAuthStore } from "@/store/authStore";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { MultiSelect } from "@/components/ui/multi-select";
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGetIncidentsQuery } from "@/api/incedentApi";
+import { useGetShiftInfoQuery } from "@/api/settingsApi";
 
 // Live elapsed-time counter for in-progress incidents
 const LiveDuration = ({ startTime }: { startTime: string }) => {
@@ -71,6 +73,7 @@ export const Incidents = () => {
   const { data: deptsData } = useGetDepartmentsQuery();
   const departments = Array.isArray(deptsData) ? deptsData : deptsData?.departments || [];
   const { user } = useAuthStore();
+    const { data: shiftInfo } = useGetShiftInfoQuery();
   
   // Date filtering states (defaulting to today's date)
   const today = format(new Date(), "yyyy-MM-dd");
@@ -87,6 +90,31 @@ export const Incidents = () => {
     channel: channelFilter !== "ALL" ? channelFilter : undefined,
     reason_id: selectedReasonIds.length > 0 ? selectedReasonIds[0] : undefined,
   });
+
+  const isShiftActive = useMemo(() => {
+    const duration = Number(shiftInfo?.shift_duration || 24);
+    const startTimeStr = shiftInfo?.shift_start_time;
+    if (duration >= 24 || !startTimeStr) return true;
+
+    const now = new Date();
+    const [sh, sm, ss] = startTimeStr.split(":").map(Number);
+    
+    // Today's shift window
+    const todayStart = new Date(now);
+    todayStart.setHours(sh, sm || 0, ss || 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(todayEnd.getHours() + duration);
+    
+    // Yesterday's shift window
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(yesterdayStart);
+    yesterdayEnd.setHours(yesterdayEnd.getHours() + duration);
+    
+    return (now >= todayStart && now <= todayEnd) || (now >= yesterdayStart && now <= yesterdayEnd);
+  }, [shiftInfo]);
+
+  console.log("Shift Active:", isShiftActive, "Shift Start:", shiftInfo?.shift_start_time, "Shift Duration:", shiftInfo?.shift_duration, "channels data", dynamicChannels, "depts", deptsData );
   const apiIncidents: any[] = data?.incidents || [];
 
   // Modal states
@@ -140,7 +168,7 @@ export const Incidents = () => {
         || inc.reason?.responsible_dept
         || "--";
 
-      const data: any = {
+      const data = {
         "Business Date": getBusinessDate(inc.downTimeStart),
         "Channel": inc.channel.replace("_", " "),
         "Branch": inc.branch?.name || inc.branch_id || "--",
@@ -151,11 +179,8 @@ export const Incidents = () => {
         "Status": inc.status,
         "Reason": inc.reason?.name || inc.reasonId || "--",
         "Remark": inc.remark || "--",
+        ...(isPrivileged ? { "Responsible Department": deptName } : {}),
       };
-
-      if (isPrivileged) {
-        data["Responsible Department"] = deptName;
-      }
 
       return data;
     });
@@ -171,7 +196,20 @@ export const Incidents = () => {
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Incidents Register</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-bold tracking-tight">Incidents Register</h1>
+            {shiftInfo?.shift_start_time && (
+              <Badge 
+                variant={isShiftActive ? "default" : "secondary"}
+                className={isShiftActive 
+                  ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-100" 
+                  : "bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-100"
+                }
+              >
+                {isShiftActive ? "● Shift Active" : "○ Shift Inactive (Outside Hours)"}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground mt-1">Manage and track service downtime events.</p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">

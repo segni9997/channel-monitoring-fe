@@ -54,6 +54,27 @@ class IncidentService
 
     public function storeIncident(array $data, bool $isAtm = false)
     {
+        $settings = SystemSetting::all()->pluck('value', 'key');
+        $shiftHours = isset($settings['shift_time']) ? (int) $settings['shift_time'] : 24;
+        $shiftStartTimeStr = $settings['global_shift_start_time'] ?? '00:00:00';
+
+        if ($shiftHours < 24) {
+            $now = Carbon::now();
+            $todayStart = Carbon::parse($shiftStartTimeStr);
+            $todayEnd = $todayStart->copy()->addHours($shiftHours);
+
+            $yesterdayStart = $todayStart->copy()->subDay();
+            $yesterdayEnd = $yesterdayStart->copy()->addHours($shiftHours);
+
+            $isInTodayShift = $now->between($todayStart, $todayEnd);
+            $isInYesterdayShift = $now->between($yesterdayStart, $yesterdayEnd);
+
+            if (!$isInTodayShift && !$isInYesterdayShift) {
+                $message = "Incidents can only be created during the active shift window. Current shift starts at {$shiftStartTimeStr} and lasts for {$shiftHours} hours.";
+                throw new \Exception($message, 403);
+            }
+        }
+
         if ($data['status'] === 'completed' && !empty($data['downTimeEnd'])) {
             $data['duration'] = $this->calculateDuration($data['downTimeStart'], $data['downTimeEnd']);
         }
@@ -71,6 +92,14 @@ class IncidentService
     public function updateIncident(int $id, array $data, bool $isAdmin = false)
     {
         $incident = Incident::findOrFail($id);
+        
+        // Capture only the fields that are about to be updated
+        $oldValues = [];
+        foreach ($data as $key => $value) {
+            if (array_key_exists($key, $incident->getAttributes())) {
+                $oldValues[$key] = $incident->$key;
+            }
+        }
 
         if ($incident->status === 'completed' && ($data['status'] ?? '') === 'completed') {
             throw new \Exception('This incident is already marked as completed.', 422);
@@ -85,9 +114,21 @@ class IncidentService
         }
 
         $incident->update($data);
+        $incident->refresh();
+
+        // Capture new values for the same fields
+        $newValues = [];
+        foreach ($oldValues as $key => $value) {
+            $newValues[$key] = $incident->$key;
+        }
+        // Also capture duration if it was updated
+        if (isset($data['duration'])) {
+            $newValues['duration'] = $incident->duration;
+            $oldValues['duration'] = $oldValues['duration'] ?? null;
+        }
 
         $logAction = $isAdmin ? 'Admin Edit Incident' : 'Update Incident';
-        $this->auditLog->log($logAction, "Updated incident ID {$incident->id}");
+        $this->auditLog->log($logAction, "Updated incident ID {$incident->id}", null, $oldValues, $newValues);
 
         return $incident;
     }
@@ -124,8 +165,11 @@ class IncidentService
         $completedIncidents = $incidents->where('status', 'completed')->count();
 
         $totalDownTime = $incidents->sum(fn($i) => (int) $i->duration);
-        $atmTotalDownTime = $incidents->where('channel', 'ATM')->sum(fn($i) => (int) $i->duration);
-        $otherTotalDownTime = $incidents->where('channel', '!=', 'ATM')->sum(fn($i) => (int) $i->duration);
+        $atmIncidents = $incidents->where('channel', 'ATM');
+        $otherIncidents = $incidents->where('channel', '!=', 'ATM');
+
+        $atmTotalDownTime = $atmIncidents->sum(fn($i) => (int) $i->duration);
+        $otherTotalDownTime = $otherIncidents->sum(fn($i) => (int) $i->duration);
 
         $downtimePerChannel = $incidents->groupBy('channel')->map(fn($group) => [
             'incident_count' => $group->count(),
@@ -152,11 +196,17 @@ class IncidentService
             'pending_incidents' => $pendingIncidents,
             'completed_incidents' => $completedIncidents,
             'total_down_time' => $totalDownTime,
-            'atm_total_down_time' => $atmTotalDownTime,
-            'other_total_down_time' => $otherTotalDownTime,
             'total_uptime_percentage' => $calculateUptime($totalDownTime),
-            'atm_uptime_percentage' => $calculateUptime($atmTotalDownTime),
-            'other_uptime_percentage' => $calculateUptime($otherTotalDownTime),
+            'atm_metrics' => [
+                'incident_count' => $atmIncidents->count(),
+                'total_down_time' => $atmTotalDownTime,
+                'uptime_percentage' => $calculateUptime($atmTotalDownTime),
+            ],
+            'other_metrics' => [
+                'incident_count' => $otherIncidents->count(),
+                'total_down_time' => $otherTotalDownTime,
+                'uptime_percentage' => $calculateUptime($otherTotalDownTime),
+            ],
             'shift_time' => $shiftTime,
             'monitored_days' => $days,
             'downtime_per_channel' => $downtimePerChannel,
@@ -168,9 +218,38 @@ class IncidentService
 
     protected function calculateDuration($start, $end)
     {
-        $start = Carbon::parse($start);
-        $end = Carbon::parse($end);
-        return $start->diffInMinutes($end) . ' mins';
+        $settings = SystemSetting::all()->pluck('value', 'key');
+        $shiftHours = isset($settings['shift_time']) ? (int) $settings['shift_time'] : 24;
+        $shiftStartTimeStr = $settings['global_shift_start_time'] ?? '00:00:00';
+
+        $incidentStart = Carbon::parse($start);
+        $incidentEnd = Carbon::parse($end);
+
+        if ($shiftHours >= 24) {
+            return $incidentStart->diffInMinutes($incidentEnd) . ' mins';
+        }
+
+        $totalMinutes = 0;
+        // Start checking from the day before the incident start to catch shifts crossing midnight
+        $checkDate = $incidentStart->copy()->subDay()->startOfDay();
+        $lastDate = $incidentEnd->copy()->startOfDay();
+
+        while ($checkDate->lte($lastDate)) {
+            $windowStart = Carbon::parse($checkDate->format('Y-m-d') . ' ' . $shiftStartTimeStr);
+            $windowEnd = $windowStart->copy()->addHours($shiftHours);
+
+            // Overlap logic: max of starts and min of ends
+            $overlapStart = $incidentStart->max($windowStart);
+            $overlapEnd = $incidentEnd->min($windowEnd);
+
+            if ($overlapStart->lt($overlapEnd)) {
+                $totalMinutes += $overlapStart->diffInMinutes($overlapEnd);
+            }
+            
+            $checkDate->addDay();
+        }
+
+        return $totalMinutes . ' mins';
     }
 
     protected function calculateDays(?string $fromDate, ?string $toDate)

@@ -13,7 +13,7 @@ class AuditLogService
     /**
      * Log an activity to the system_logs table.
      */
-    public function log(string $action, $details = null, ?int $userId = null): void
+    public function log(string $action, $details = null, ?int $userId = null, $oldValues = null, $newValues = null): void
     {
         try {
             $user = $userId ? User::find($userId) : Auth::user();
@@ -23,7 +23,9 @@ class AuditLogService
                 'user_id' => $user ? $user->id : null,
                 'user_name' => $userName,
                 'action' => $action,
-                'details' => is_array($details) ? json_encode($details) : $details,
+                'details' => $details,
+                'old_values' => $oldValues,
+                'new_values' => $newValues,
                 'ip_address' => Request::ip(),
                 'user_agent' => Request::userAgent(),
             ]);

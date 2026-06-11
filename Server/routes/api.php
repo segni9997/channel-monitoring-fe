@@ -18,6 +18,7 @@ Route::post('/login/super-admin', [LoginController::class, 'superAdminLogin']);
 Route::post('/login/admin', [LoginController::class, 'adminLogin']);
 Route::post('/login/user', [LoginController::class, 'userLogin']);
 Route::post('/super-admin/create', [SuperAdminController::class, 'storeSuperAdmin']);
+Route::post('/seed-mock-data', [\App\Http\Controllers\Api\MockDataController::class, 'seed']);
 
 // Protected Routes (Require Sanctum Token)
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -40,6 +41,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/admin/users/{id}', [AdminController::class, 'updateUser']);
     Route::get('/admin/settings', [AdminController::class, 'getSettings']);
     Route::post('/admin/settings', [AdminController::class, 'updateSettings']);
+    Route::post('/admin/settings/shift-start-time', [AdminController::class, 'updateShiftStartTime']);
+    Route::post('/admin/settings/shift-duration', [AdminController::class, 'updateShiftDuration']);
     Route::put('/admin/incidents/{id}', [AdminController::class, 'updateIncident']);
 
     // Reasons Features
@@ -87,4 +90,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // User Settings
     Route::post('/settings/change-password', [UserController::class, 'changePassword']);
+    Route::post('/settings/start-shift', [UserController::class, 'startShift']);
+    Route::get('/settings/shift-info', [AdminController::class, 'getShiftSettings']);
 });

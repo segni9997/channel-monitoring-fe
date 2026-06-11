@@ -38,8 +38,12 @@ class ReasonService
     public function update($id, array $data)
     {
         $reason = Reason::findOrFail($id);
+        $oldValues = $reason->only(array_keys($data));
+        
         $reason->update($data);
-        $this->auditLog->log('Update Reason', "Updated reason: {$reason->name} (ID: {$id})");
+        $newValues = $reason->refresh()->only(array_keys($data));
+
+        $this->auditLog->log('Update Reason', "Updated reason: {$reason->name} (ID: {$id})", null, $oldValues, $newValues);
         return $reason;
     }
 

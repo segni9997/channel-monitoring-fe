@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit2, Trash2, X, Check } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Check, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Pagination } from "@/components/ui/pagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,10 @@ export const AdminUserMgmt = () => {
   const [formData, setFormData] = useState<Partial<User>>({});
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  // Per-field validation errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const filteredUsers = useMemo(() => {
     if (!users) return [];
@@ -65,54 +69,133 @@ export const AdminUserMgmt = () => {
     setEditingId(user.id.toString());
     setFormData(user);
     setIsAdding(false);
+    setErrorMsg("");
+    setSuccessMsg("");
   };
 
   const startAdd = () => {
     setIsAdding(true);
     setEditingId(null);
     setFormData({ role: Role.pms_offcier, firstName: "", lastName: "", email: "", phoneNumber: "", password: "" });
+    setErrorMsg("");
+    setSuccessMsg("");
+    setFieldErrors({});
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setIsAdding(false);
     setFormData({});
+    setErrorMsg("");
+    setFieldErrors({});
+  };
+
+  // Validate form and return field-level errors map
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    const emailDomain = "@berhanbanksc.com";
+    const isSuperAdmin = currentUser?.role === Role.super_admin;
+
+    if (!formData.firstName?.trim()) errs.firstName = "First name is required.";
+    if (!formData.lastName?.trim()) errs.lastName = "Last name is required.";
+
+    if (!formData.email?.trim()) {
+      errs.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errs.email = "Enter a valid email address.";
+    } else if (!isSuperAdmin && !formData.email.toLowerCase().endsWith(emailDomain)) {
+      errs.email = `Only ${emailDomain} addresses are allowed.`;
+    }
+
+    if (formData.phoneNumber && !/^\d{10}$/.test(formData.phoneNumber.replace(/[\s\-()]/g, ""))) {
+      errs.phoneNumber = "Phone must be 10 digits.";
+    }
+
+    if (isAdding && !formData.password) {
+      errs.password = "Password is required.";
+    } else if (isAdding && formData.password && formData.password.length < 8) {
+      errs.password = "Password must be at least 8 characters.";
+    }
+
+    if (!formData.role) errs.role = "Role is required.";
+
+    return errs;
   };
 
   const handleSave = () => {
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.role || (isAdding && !formData.password)) return;
-
-    // Email domain restriction - Bypassed for super_admin
-    const emailDomain = "@berhanbanksc.com";
-    const isSuperAdmin = currentUser?.role === Role.super_admin;
-    
-    if (!isSuperAdmin && !formData.email?.toLowerCase().endsWith(emailDomain)) {
-      alert(`Invalid email domain. Only ${emailDomain} is permitted.`);
+    const errs = validate();
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      setErrorMsg("Please fix the errors below before saving.");
       return;
     }
+
+    setFieldErrors({});
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    // Map backend field-level errors (Laravel validation format)
+    const applyBackendErrors = (err: any) => {
+      const backendErrors: Record<string, string> = {};
+      if (err?.data?.errors) {
+        const map: Record<string, string> = {
+          first_name: "firstName", firstName: "firstName",
+          last_name: "lastName",  lastName: "lastName",
+          email: "email",
+          phone_number: "phoneNumber", phoneNumber: "phoneNumber",
+          password: "password",
+        };
+        for (const [key, msgs] of Object.entries(err.data.errors as Record<string, string | string[]>)) {
+          const fieldKey = map[key] ?? key;
+          backendErrors[fieldKey] = Array.isArray(msgs) ? msgs[0] : msgs;
+        }
+      }
+      if (Object.keys(backendErrors).length > 0) setFieldErrors(backendErrors);
+      setErrorMsg(
+        err?.data?.message || err?.data?.error ||
+        (Object.keys(backendErrors).length > 0 ? "Fix the highlighted fields and try again." : "Request failed. Please try again.")
+      );
+    };
 
     if (isAdding) {
       console.log("formdata",formData)
       if (formData.role === Role.admin) {
-        // Omit role for admin creation as requested
-        const { role, ...adminData } = formData;
-        createAdmin(adminData as any).unwrap().then(() => {
+        const adminData = formData;
+        createAdmin({
+          firstName: adminData.firstName as string,
+          lastName: adminData.lastName as string,
+          email: adminData.email as string,
+          phoneNumber: adminData.phoneNumber as string,
+          password: adminData.password as string,
+        }).unwrap().then(() => {
+          setSuccessMsg("Admin account created successfully!");
           refetch();
           cancelEdit();
+          setTimeout(() => setSuccessMsg(""), 3000);
         }).catch((err) => {
           console.error("Failed to create admin:", err);
-          alert(err?.data?.message || "Failed to create admin");
+          applyBackendErrors(err);
         });
       } else {
         addUser(formData as Omit<User, "id" | "created_at" | "updated_at"> & { password: string }).unwrap().then(() => {
+          setSuccessMsg("User created successfully!");
           refetch();
           cancelEdit();
+          setTimeout(() => setSuccessMsg(""), 3000);
+        }).catch((err) => {
+          console.error("Failed to create user:", err);
+          applyBackendErrors(err);
         });
       }
     } else if (editingId) {
       updateUser({id:Number(editingId),data:formData as Omit<User, "password" > }).unwrap().then(() => {
+        setSuccessMsg("User updated successfully!");
         refetch();
         cancelEdit();
+        setTimeout(() => setSuccessMsg(""), 3000);
+      }).catch((err) => {
+        console.error("Failed to update user:", err);
+        applyBackendErrors(err);
       });
     }
   };
@@ -156,7 +239,7 @@ export const AdminUserMgmt = () => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zM21 21l-4.35-4.35"
               />
             </svg>
             {searchQuery && (
@@ -173,6 +256,19 @@ export const AdminUserMgmt = () => {
           </Button>
         </div>
       </div>
+
+      {successMsg && (
+        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2.5 rounded-md border border-green-200 animate-in fade-in duration-200">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+      {errorMsg && (
+        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2.5 rounded-md border border-destructive/20 animate-in fade-in duration-200">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       <Card className="shadow-sm">
         <CardHeader>
@@ -197,41 +293,80 @@ export const AdminUserMgmt = () => {
                 {isAdding && (
                   <TableRow className="bg-muted/50">
                     <TableCell>
-                      <Input value={formData.firstName || ""} onChange={(e) => handleNameChange("firstName", e.target.value)} placeholder="First Name" />
+                      <div className="space-y-1">
+                        <Input
+                          value={formData.firstName || ""}
+                          onChange={(e) => { handleNameChange("firstName", e.target.value); setFieldErrors(p => ({ ...p, firstName: "" })); }}
+                          placeholder="First Name"
+                          className={fieldErrors.firstName ? "border-destructive focus-visible:ring-destructive" : ""}
+                        />
+                        {fieldErrors.firstName && <p className="text-xs text-destructive">{fieldErrors.firstName}</p>}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Input value={formData.lastName || ""} onChange={(e) => handleNameChange("lastName", e.target.value)} placeholder="Last Name" />
+                      <div className="space-y-1">
+                        <Input
+                          value={formData.lastName || ""}
+                          onChange={(e) => { handleNameChange("lastName", e.target.value); setFieldErrors(p => ({ ...p, lastName: "" })); }}
+                          placeholder="Last Name"
+                          className={fieldErrors.lastName ? "border-destructive focus-visible:ring-destructive" : ""}
+                        />
+                        {fieldErrors.lastName && <p className="text-xs text-destructive">{fieldErrors.lastName}</p>}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="Email" />
+                      <div className="space-y-1">
+                        <Input
+                          value={formData.email || ""}
+                          onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFieldErrors(p => ({ ...p, email: "" })); }}
+                          placeholder="Email"
+                          className={fieldErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+                        />
+                        {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} placeholder="Phone" />
+                      <div className="space-y-1">
+                        <Input
+                          value={formData.phoneNumber || ""}
+                          onChange={(e) => { setFormData({ ...formData, phoneNumber: e.target.value }); setFieldErrors(p => ({ ...p, phoneNumber: "" })); }}
+                          placeholder="Phone"
+                          className={fieldErrors.phoneNumber ? "border-destructive focus-visible:ring-destructive" : ""}
+                        />
+                        {fieldErrors.phoneNumber && <p className="text-xs text-destructive">{fieldErrors.phoneNumber}</p>}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={formData.role}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
-                        options={[
-                          ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
-                          { value: Role.pms_offcier, label: "PMS Officer" },
-                          { value: Role.epayment_officer, label: "E-Payment Officer" }
-                        ]}
-                      />
-
-                      
+                      <div className="space-y-1">
+                        <Select
+                          value={formData.role}
+                          onChange={(e) => { setFormData({ ...formData, role: e.target.value as Role }); setFieldErrors(p => ({ ...p, role: "" })); }}
+                          options={[
+                            ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
+                            { value: Role.pms_offcier, label: "PMS Officer" },
+                            { value: Role.epayment_officer, label: "E-Payment Officer" }
+                          ]}
+                        />
+                        {fieldErrors.role && <p className="text-xs text-destructive">{fieldErrors.role}</p>}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Input 
-                        type="password" 
-                        value={formData.password || ""} 
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
-                        placeholder="Password" 
-                      />
+                      <div className="space-y-1">
+                        <Input
+                          type="password"
+                          value={formData.password || ""}
+                          onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setFieldErrors(p => ({ ...p, password: "" })); }}
+                          placeholder="Password (min 8 chars)"
+                          className={fieldErrors.password ? "border-destructive focus-visible:ring-destructive" : ""}
+                        />
+                        {fieldErrors.password && <p className="text-xs text-destructive">{fieldErrors.password}</p>}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                        {isAddingUser || isCreatingAdmin ? <Loader/> : <>   <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button></>}
+                      {isAddingUser || isCreatingAdmin ? <Loader/> : <>
+                        <Button variant="ghost" size="icon" onClick={handleSave} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-destructive hover:text-red-700"><X className="h-4 w-4" /></Button>
+                      </>}
                     </TableCell>
                   </TableRow>
                 )}
@@ -240,28 +375,51 @@ export const AdminUserMgmt = () => {
                   return (
                     <TableRow key={u.id}>
                       <TableCell className="font-medium">
-                        {isEditing ? <Input value={formData.firstName || ""} onChange={(e) => handleNameChange("firstName", e.target.value)} /> : u.firstName}
+                        {isEditing ? (
+                          <div className="space-y-1">
+                            <Input value={formData.firstName || ""} onChange={(e) => { handleNameChange("firstName", e.target.value); setFieldErrors(p => ({ ...p, firstName: "" })); }} className={fieldErrors.firstName ? "border-destructive" : ""} />
+                            {fieldErrors.firstName && <p className="text-xs text-destructive">{fieldErrors.firstName}</p>}
+                          </div>
+                        ) : u.firstName}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {isEditing ? <Input value={formData.lastName || ""} onChange={(e) => handleNameChange("lastName", e.target.value)} /> : u.lastName}
-                      </TableCell>
-                      <TableCell>
-                        {isEditing ? <Input value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /> : u.email}
-                      </TableCell>
-                      <TableCell>
-                        {isEditing ? <Input value={formData.phoneNumber || ""} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} /> : u.phoneNumber}
+                        {isEditing ? (
+                          <div className="space-y-1">
+                            <Input value={formData.lastName || ""} onChange={(e) => { handleNameChange("lastName", e.target.value); setFieldErrors(p => ({ ...p, lastName: "" })); }} className={fieldErrors.lastName ? "border-destructive" : ""} />
+                            {fieldErrors.lastName && <p className="text-xs text-destructive">{fieldErrors.lastName}</p>}
+                          </div>
+                        ) : u.lastName}
                       </TableCell>
                       <TableCell>
                         {isEditing ? (
-                          <Select
-                            value={formData.role}
-                            onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
-                            options={[
-                              ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
-                              { value: Role.pms_offcier, label: "PMS Officer" },
-                              { value: Role.epayment_officer, label: "E-Payment Officer" }
-                            ]}
-                          />
+                          <div className="space-y-1">
+                            <Input value={formData.email || ""} onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFieldErrors(p => ({ ...p, email: "" })); }} className={fieldErrors.email ? "border-destructive" : ""} />
+                            {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
+                          </div>
+                        ) : u.email}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <div className="space-y-1">
+                            <Input value={formData.phoneNumber || ""} onChange={(e) => { setFormData({ ...formData, phoneNumber: e.target.value }); setFieldErrors(p => ({ ...p, phoneNumber: "" })); }} className={fieldErrors.phoneNumber ? "border-destructive" : ""} />
+                            {fieldErrors.phoneNumber && <p className="text-xs text-destructive">{fieldErrors.phoneNumber}</p>}
+                          </div>
+                        ) : u.phoneNumber}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <div className="space-y-1">
+                            <Select
+                              value={formData.role}
+                              onChange={(e) => { setFormData({ ...formData, role: e.target.value as Role }); setFieldErrors(p => ({ ...p, role: "" })); }}
+                              options={[
+                                ...(currentUser?.role === Role.super_admin ? [{ value: Role.admin, label: "Admin" }] : []),
+                                { value: Role.pms_offcier, label: "PMS Officer" },
+                                { value: Role.epayment_officer, label: "E-Payment Officer" }
+                              ]}
+                            />
+                            {fieldErrors.role && <p className="text-xs text-destructive">{fieldErrors.role}</p>}
+                          </div>
                         ) : (
                           <Badge variant={u.role === Role.admin ? "default" : "secondary"}>
                             {u.role.replace("_", " ")}
@@ -270,12 +428,16 @@ export const AdminUserMgmt = () => {
                       </TableCell>
                       <TableCell>
                         {isEditing ? (
-                          <Input 
-                            type="password" 
-                            value={formData.password || ""} 
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
-                            placeholder="New password" 
-                          />
+                          <div className="space-y-1">
+                            <Input
+                              type="password"
+                              value={formData.password || ""}
+                              onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setFieldErrors(p => ({ ...p, password: "" })); }}
+                              placeholder="New password"
+                              className={fieldErrors.password ? "border-destructive" : ""}
+                            />
+                            {fieldErrors.password && <p className="text-xs text-destructive">{fieldErrors.password}</p>}
+                          </div>
                         ) : (
                           <span className="text-muted-foreground italic text-xs">********</span>
                         )}

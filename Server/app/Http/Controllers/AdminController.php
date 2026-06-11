@@ -42,6 +42,19 @@ class AdminController extends Controller
     }
 
     /**
+     * Get only shift-related settings (accessible to all users).
+     */
+    public function getShiftSettings(Request $request)
+    {
+        $settings = $this->settingsService->getAllSettings();
+        
+        return response()->json([
+            'shift_start_time' => $settings['global_shift_start_time'] ?? '00:00:00',
+            'shift_duration' => $settings['shift_time'] ?? '24'
+        ], 200);
+    }
+
+    /**
      * Get system settings.
      */
     public function getSettings(Request $request)
@@ -58,8 +71,8 @@ class AdminController extends Controller
      */
     public function updateSettings(Request $request)
     {
-        if (!in_array($request->user()->role, ['admin', 'superAdmin'])) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+        if ($request->user()->role !== 'superAdmin') {
+            return response()->json(['message' => 'Unauthorized. Only super admins can modify system settings.'], 403);
         }
 
         $validated = $request->validate([
@@ -69,6 +82,56 @@ class AdminController extends Controller
         $this->settingsService->updateSettings($validated);
 
         return response()->json(['message' => 'Settings updated successfully'], 200);
+    }
+
+    /**
+     * Update the global shift start time (time only).
+     */
+    public function updateShiftStartTime(Request $request)
+    {
+        if ($request->user()->role !== 'superAdmin') {
+            return response()->json(['message' => 'Unauthorized. Only super admins can modify shift start time.'], 403);
+        }
+
+        $validated = $request->validate([
+            'shift_start_time' => [
+                'required',
+                'string',
+                'regex:/^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/'
+            ],
+        ]);
+
+        $this->settingsService->updateSettings([
+            'global_shift_start_time' => $validated['shift_start_time']
+        ]);
+
+        return response()->json([
+            'message' => 'Global shift start time updated successfully',
+            'shift_start_time' => $validated['shift_start_time']
+        ], 200);
+    }
+
+    /**
+     * Update the global shift duration (hours).
+     */
+    public function updateShiftDuration(Request $request)
+    {
+        if ($request->user()->role !== 'superAdmin') {
+            return response()->json(['message' => 'Unauthorized. Only super admins can modify shift duration.'], 403);
+        }
+
+        $validated = $request->validate([
+            'shift_duration' => 'required|in:8,16,24',
+        ]);
+
+        $this->settingsService->updateSettings([
+            'shift_time' => $validated['shift_duration']
+        ]);
+
+        return response()->json([
+            'message' => 'Global shift duration updated successfully',
+            'shift_duration' => $validated['shift_duration']
+        ], 200);
     }
 
     /**

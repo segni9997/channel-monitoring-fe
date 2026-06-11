@@ -10,10 +10,12 @@ use App\Services\UserService;
 class UserController extends Controller
 {
     protected $userService;
+    protected $settingsService;
 
-    public function __construct(UserService $userService)
+    public function __construct(UserService $userService, \App\Services\SettingsService $settingsService)
     {
         $this->userService = $userService;
+        $this->settingsService = $settingsService;
     }
 
     /**
@@ -35,6 +37,27 @@ class UserController extends Controller
 
             return response()->json([
                 'message' => 'Password changed successfully'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getCode() ?: 400);
+        }
+    }
+
+    /**
+     * Register the shift start time for the authenticated user.
+     */
+    public function startShift(Request $request)
+    {
+        $request->validate([
+            'shift_start_time' => 'nullable|date',
+        ]);
+
+        try {
+            $startTime = $this->settingsService->startGlobalShift($request->shift_start_time);
+
+            return response()->json([
+                'message' => 'Global shift started successfully',
+                'shift_start_time' => $startTime
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], $e->getCode() ?: 400);

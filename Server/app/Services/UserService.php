@@ -45,6 +45,12 @@ class UserService
     public function updateUser(int $id, array $data)
     {
         $user = User::findOrFail($id);
+        
+        $fieldsToTrack = array_keys($data);
+        // Exclude password from being logged
+        $trackData = array_filter($fieldsToTrack, fn($key) => $key !== 'password');
+        
+        $oldValues = $user->only($trackData);
 
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
@@ -52,8 +58,14 @@ class UserService
 
         $user->update($data);
         $user->refresh();
+        
+        $newValues = $user->only($trackData);
+        if (isset($data['password'])) {
+             $oldValues['password'] = '[HIDDEN]';
+             $newValues['password'] = '[UPDATED]';
+        }
 
-        $this->auditLog->log('Update User', "Updated user ID {$user->id} ({$user->email})");
+        $this->auditLog->log('Update User', "Updated user ID {$user->id} ({$user->email})", null, $oldValues, $newValues);
 
         return $user;
     }
@@ -61,11 +73,12 @@ class UserService
     public function toggleUserStatus(int $id)
     {
         $user = User::findOrFail($id);
+        $oldStatus = $user->is_active;
         $user->is_active = !$user->is_active;
         $user->save();
 
         $action = $user->is_active ? 'Admin account activated' : 'Admin account disabled';
-        $this->auditLog->log('Toggle User Status', $action . " for ID {$id}");
+        $this->auditLog->log('Toggle User Status', $action . " for ID {$id}", null, ['is_active' => $oldStatus], ['is_active' => $user->is_active]);
 
         return $user;
     }

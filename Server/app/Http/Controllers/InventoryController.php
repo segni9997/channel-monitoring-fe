@@ -42,12 +42,16 @@ class InventoryController extends Controller
             'atm_id' => 'nullable|exists:atms,id',
         ]);
 
-        $incident = $this->incidentService->storeIncident($validated, true);
+        try {
+            $incident = $this->incidentService->storeIncident($validated, true);
 
-        return response()->json([
-            'message' => 'ATM Incident created successfully',
-            'incident' => $incident
-        ], 201);
+            return response()->json([
+                'message' => 'ATM Incident created successfully',
+                'incident' => $incident
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getCode() ?: 400);
+        }
     }
 
     // Create a new incident
@@ -63,12 +67,16 @@ class InventoryController extends Controller
             'reasonId' => 'required|exists:reasons,id',
         ]);
 
-        $incident = $this->incidentService->storeIncident($validated, false);
+        try {
+            $incident = $this->incidentService->storeIncident($validated, false);
 
-        return response()->json([
-            'message' => 'Incident created successfully',
-            'incident' => $incident
-        ], 201);
+            return response()->json([
+                'message' => 'Incident created successfully',
+                'incident' => $incident
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getCode() ?: 400);
+        }
     }
 
     // Get a single incident by ID

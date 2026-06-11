@@ -41,8 +41,12 @@ class AtmService
     public function update($id, array $data)
     {
         $atm = Atm::findOrFail($id);
+        $oldValues = $atm->only(array_keys($data));
+        
         $atm->update($data);
-        $this->auditLog->log('Update ATM', "Updated ATM: {$atm->name} (ID: {$id})");
+        $newValues = $atm->refresh()->only(array_keys($data));
+
+        $this->auditLog->log('Update ATM', "Updated ATM: {$atm->name} (ID: {$id})", null, $oldValues, $newValues);
         return $atm;
     }
 

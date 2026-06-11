@@ -37,8 +37,12 @@ class BranchService
     public function update($id, array $data)
     {
         $branch = Branch::findOrFail($id);
+        $oldValues = $branch->only(array_keys($data));
+        
         $branch->update($data);
-        $this->auditLog->log('Update Branch', "Updated branch: {$branch->name} (ID: {$id})");
+        $newValues = $branch->refresh()->only(array_keys($data));
+
+        $this->auditLog->log('Update Branch', "Updated branch: {$branch->name} (ID: {$id})", null, $oldValues, $newValues);
         return $branch;
     }
 

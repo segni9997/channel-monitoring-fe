@@ -34,8 +34,12 @@ class ChannelService
     public function update($id, array $data)
     {
         $channel = Channel::findOrFail($id);
+        $oldValues = $channel->only(array_keys($data));
+        
         $channel->update($data);
-        $this->auditLog->log('Update Channel', "Updated channel: {$channel->name} (ID: {$id})");
+        $newValues = $channel->refresh()->only(array_keys($data));
+
+        $this->auditLog->log('Update Channel', "Updated channel: {$channel->name} (ID: {$id})", null, $oldValues, $newValues);
         return $channel;
     }
 

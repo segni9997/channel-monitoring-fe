@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/shared/Loader";
 import {
-  Plus, X, Check, ToggleLeft, ToggleRight, ShieldCheck, RefreshCw,
+  Plus, X, Check, ToggleLeft, ToggleRight, ShieldCheck, RefreshCw, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { Role } from "@/types";
 
@@ -44,11 +44,13 @@ export const SuperAdminUserMgmt = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [form, setForm] = useState<AdminForm>(emptyForm());
   const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [successMsg, setSuccessMsg] = useState("");
   const [togglingId, setTogglingId] = useState<string | number | null>(null);
-console.log("allUsers",allUsers)
+  console.log("allUsers",allUsers)
   // Filter only admin-role users from the shared users list
   const admins = useMemo(
-    () => allUsers.filter((u: any) => u.role === Role.admin || u.role === "admin"),
+    () => allUsers.filter((u: any) => u.role === Role.admin || u.role === "admin" || u.role ==="Admin"),
     [allUsers]
   );
 
@@ -61,18 +63,62 @@ console.log("allUsers",allUsers)
   };
 
   const handleCreate = async () => {
-    if (!form.firstName || !form.lastName || !form.email || !form.phoneNumber || !form.password) {
-      setFormError("All fields are required.");
+    // Client-side validation
+    const errs: Record<string, string> = {};
+    const emailDomain = "@berhanbanksc.com";
+    if (!form.firstName.trim()) errs.firstName = "First name is required.";
+    if (!form.lastName.trim()) errs.lastName = "Last name is required.";
+    if (!form.email.trim()) {
+      errs.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      errs.email = "Enter a valid email address.";
+    } else if (!form.email.toLowerCase().endsWith(emailDomain)) {
+      errs.email = `Only ${emailDomain} addresses are allowed.`;
+    }
+    if (form.phoneNumber && !/^\d{10}$/.test(form.phoneNumber.replace(/[\s\-()]/g, ""))) {
+      errs.phoneNumber = "Phone must be 10 digits.";
+    }
+    if (!form.password) {
+      errs.password = "Password is required.";
+    } else if (form.password.length < 8) {
+      errs.password = "Password must be at least 8 characters.";
+    }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      setFormError("Please fix the errors below.");
       return;
     }
+    setFieldErrors({});
     setFormError("");
+    setSuccessMsg("");
     try {
       await createAdmin(form).unwrap();
+      setSuccessMsg("Admin account created successfully!");
       setIsAdding(false);
       setForm(emptyForm());
       refetch();
+      setTimeout(() => setSuccessMsg(""), 3000);
     } catch (e: any) {
-      setFormError(e?.data?.message ?? e?.data?.error ?? "Failed to create admin. Check the fields and try again.");
+      // Map backend field-level errors (Laravel format)
+      const backendErrs: Record<string, string> = {};
+      if (e?.data?.errors) {
+        const fieldMap: Record<string, string> = {
+          first_name: "firstName", firstName: "firstName",
+          last_name: "lastName",  lastName: "lastName",
+          email: "email",
+          phone_number: "phoneNumber", phoneNumber: "phoneNumber",
+          password: "password",
+        };
+        for (const [key, msgs] of Object.entries(e.data.errors as Record<string, string | string[]>)) {
+          const fk = fieldMap[key] ?? key;
+          backendErrs[fk] = Array.isArray(msgs) ? msgs[0] : msgs;
+        }
+      }
+      if (Object.keys(backendErrs).length > 0) setFieldErrors(backendErrs);
+      setFormError(
+        e?.data?.message ?? e?.data?.error ??
+        (Object.keys(backendErrs).length > 0 ? "Fix the highlighted fields and try again." : "Failed to create admin. Check the fields and try again.")
+      );
     }
   };
 
@@ -110,7 +156,7 @@ console.log("allUsers",allUsers)
           </Button>
           <Button
             id="add_admin_btn"
-            onClick={() => { setIsAdding(true); setForm(emptyForm()); setFormError(""); }}
+            onClick={() => { setIsAdding(true); setForm(emptyForm()); setFormError(""); setFieldErrors({}); }}
             disabled={isAdding}
             className="shadow-lg shadow-primary/20 gap-2"
           >
@@ -119,6 +165,13 @@ console.log("allUsers",allUsers)
           </Button>
         </div>
       </div>
+
+      {successMsg && (
+        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2.5 rounded-md border border-green-200 animate-in fade-in duration-200">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
 
       {/* Create Admin Form — shown above the table when adding */}
       {isAdding && (
@@ -135,8 +188,10 @@ console.log("allUsers",allUsers)
                   id="new_admin_firstname"
                   placeholder="First Name"
                   value={form.firstName}
-                  onChange={(e) => handleNameChange("firstName", e.target.value)}
+                  onChange={(e) => { handleNameChange("firstName", e.target.value); setFieldErrors(p => ({ ...p, firstName: "" })); }}
+                  className={fieldErrors.firstName ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {fieldErrors.firstName && <p className="text-xs text-destructive">{fieldErrors.firstName}</p>}
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Last Name *</label>
@@ -144,8 +199,10 @@ console.log("allUsers",allUsers)
                   id="new_admin_lastname"
                   placeholder="Last Name"
                   value={form.lastName}
-                  onChange={(e) => handleNameChange("lastName", e.target.value)}
+                  onChange={(e) => { handleNameChange("lastName", e.target.value); setFieldErrors(p => ({ ...p, lastName: "" })); }}
+                  className={fieldErrors.lastName ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {fieldErrors.lastName && <p className="text-xs text-destructive">{fieldErrors.lastName}</p>}
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Email *</label>
@@ -153,34 +210,41 @@ console.log("allUsers",allUsers)
                   id="new_admin_email"
                   placeholder="Email"
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, email: e.target.value }); setFieldErrors(p => ({ ...p, email: "" })); }}
+                  className={fieldErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Phone Number *</label>
                 <Input
                   id="new_admin_phone"
-                  placeholder="Phone Number"
+                  placeholder="Phone Number (10 digits)"
                   value={form.phoneNumber}
-                  onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, phoneNumber: e.target.value }); setFieldErrors(p => ({ ...p, phoneNumber: "" })); }}
+                  className={fieldErrors.phoneNumber ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {fieldErrors.phoneNumber && <p className="text-xs text-destructive">{fieldErrors.phoneNumber}</p>}
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">Password *</label>
                 <Input
                   id="new_admin_password"
                   type="password"
-                  placeholder="Password"
+                  placeholder="Password (min 8 characters)"
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, password: e.target.value }); setFieldErrors(p => ({ ...p, password: "" })); }}
+                  className={fieldErrors.password ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {fieldErrors.password && <p className="text-xs text-destructive">{fieldErrors.password}</p>}
               </div>
             </div>
 
             {formError && (
-              <p className="text-sm text-destructive mt-3 bg-destructive/10 px-3 py-2 rounded-md">
-                {formError}
-              </p>
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2.5 rounded-md border border-destructive/20 mt-3 animate-in fade-in duration-200">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{formError}</span>
+              </div>
             )}
 
             <div className="flex items-center gap-2 mt-4">
@@ -199,7 +263,7 @@ console.log("allUsers",allUsers)
                   <Button
                     id="cancel_create_admin_btn"
                     variant="outline"
-                    onClick={() => { setIsAdding(false); setFormError(""); setForm(emptyForm()); }}
+                    onClick={() => { setIsAdding(false); setFormError(""); setFieldErrors({}); setForm(emptyForm()); }}
                     className="gap-2"
                   >
                     <X className="h-4 w-4" />

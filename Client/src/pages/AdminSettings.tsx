@@ -14,7 +14,6 @@ export const AdminSettings = () => {
   const { data: shiftInfo, refetch: refetchShift } = useGetShiftInfoQuery();
   const [updateSettings, { isLoading: isSaving }] = useUpdateSettingsMutation();
   const [updateShiftTime, { isLoading: isStarting }] = useSetShiftStartTimeMutation();
-
   const [selected, setSelected] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
